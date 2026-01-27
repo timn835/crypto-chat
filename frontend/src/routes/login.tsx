@@ -93,6 +93,9 @@ function LoginComponent() {
 				create ? "1" : "0",
 			]);
 
+			// console.log(dataToSend);
+			// console.log(atob(await basicDecrypt(dataToSend)));
+
 			await auth.login(dataToSend);
 			await router.invalidate();
 			await sleep(1);

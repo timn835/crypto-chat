@@ -36,21 +36,28 @@ function getMessageEncoding(message: string) {
 	return enc.encode(message);
 }
 
-const KEY_STRING = "CrkijiZsSeUnRuXMSvNqfA==";
-const IV_STRING = "iv is /mUSJP87DUnadpDW";
-
 function encryptMessage(message: string, key: CryptoKey): Promise<ArrayBuffer> {
 	const encoded = getMessageEncoding(message);
 	// iv will be needed for decryption
 	// const iv = window.crypto.getRandomValues(new Uint8Array(12));
-	const iv = base64ToBytes(IV_STRING);
+	// console.log("iv as string", bytesToBase64(iv));
+	const iv = base64ToBytes(import.meta.env.VITE_BASIC_IV);
 	return window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
 }
 
 async function basicEncrypt(password: string): Promise<string> {
+	// const rawKey = window.crypto.getRandomValues(new Uint8Array(16));
+	// console.log("key is", bytesToBase64(rawKey));
+	// const key = await window.crypto.subtle.importKey(
+	// 	"raw",
+	// 	rawKey,
+	// 	"AES-GCM",
+	// 	true,
+	// 	["encrypt", "decrypt"],
+	// );
 	const key = await window.crypto.subtle.importKey(
 		"raw",
-		base64ToBytes(KEY_STRING),
+		base64ToBytes(import.meta.env.VITE_BASIC_KEY),
 		"AES-GCM",
 		true,
 		["encrypt", "decrypt"],
@@ -61,13 +68,13 @@ async function basicEncrypt(password: string): Promise<string> {
 export async function basicDecrypt(ciphertext: string): Promise<string> {
 	const key = await window.crypto.subtle.importKey(
 		"raw",
-		base64ToBytes(KEY_STRING),
+		base64ToBytes(import.meta.env.VITE_BASIC_KEY),
 		"AES-GCM",
 		true,
 		["encrypt", "decrypt"],
 	);
 	// The iv value is the same as that used for encryption
-	const iv = base64ToBytes(IV_STRING);
+	const iv = base64ToBytes(import.meta.env.VITE_BASIC_IV);
 	return bytesToBase64(
 		new Uint8Array(
 			await window.crypto.subtle.decrypt(
