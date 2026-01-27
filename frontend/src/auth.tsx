@@ -10,7 +10,7 @@ import type { User } from "./lib/types";
 
 export interface AuthContext {
 	isAuthenticated: boolean;
-	login: (username: string) => Promise<void>;
+	login: (data: string) => Promise<void>;
 	logout: () => Promise<void>;
 	user: User | null;
 }
@@ -22,7 +22,6 @@ const key = "crypto-chat.auth.user";
 function getStoredUser(): User | null {
 	const storedUser = localStorage.getItem(key);
 	if (storedUser === null) return null;
-	console.log(storedUser);
 	return JSON.parse(storedUser);
 }
 
@@ -45,9 +44,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		setUser(null);
 	}, []);
 
-	const login = useCallback(async (handle: string) => {
+	const login = useCallback(async (data: string) => {
+		console.log(data);
 		await sleep(500);
-		const user = { id: "userA123", handle };
+		const user = { id: "userA123", handle: "Timmy" };
 		setStoredUser(user);
 		setUser(user);
 	}, []);

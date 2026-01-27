@@ -8,3 +8,84 @@ export function cn(...inputs: ClassValue[]) {
 export async function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+export const EMAIL_REGEX =
+	/^([a-z\d_-]+)(((\.[a-z\d_-]+)|(-[a-z\d_-]+))+)?(\+[a-z\d_-]+)?@([a-z\d-]+)\.([a-z]{2,8})(\.[a-z]{2,8})?$/i;
+
+function bytesToBase64(bytes: Uint8Array): string {
+	let binary = "";
+	for (let i = 0; i < bytes.length; i++) {
+		binary += String.fromCharCode(bytes[i]);
+	}
+	return btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
+	const binary = atob(base64);
+	const bytes = new Uint8Array(binary.length);
+
+	for (let i = 0; i < binary.length; i++) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+
+	return bytes;
+}
+
+function getMessageEncoding(message: string) {
+	const enc = new TextEncoder();
+	return enc.encode(message);
+}
+
+const KEY_STRING = "CrkijiZsSeUnRuXMSvNqfA==";
+const IV_STRING = "iv is /mUSJP87DUnadpDW";
+
+function encryptMessage(message: string, key: CryptoKey): Promise<ArrayBuffer> {
+	const encoded = getMessageEncoding(message);
+	// iv will be needed for decryption
+	// const iv = window.crypto.getRandomValues(new Uint8Array(12));
+	const iv = base64ToBytes(IV_STRING);
+	return window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
+}
+
+async function basicEncrypt(password: string): Promise<string> {
+	const key = await window.crypto.subtle.importKey(
+		"raw",
+		base64ToBytes(KEY_STRING),
+		"AES-GCM",
+		true,
+		["encrypt", "decrypt"],
+	);
+	return bytesToBase64(new Uint8Array(await encryptMessage(password, key)));
+}
+
+export async function basicDecrypt(ciphertext: string): Promise<string> {
+	const key = await window.crypto.subtle.importKey(
+		"raw",
+		base64ToBytes(KEY_STRING),
+		"AES-GCM",
+		true,
+		["encrypt", "decrypt"],
+	);
+	// The iv value is the same as that used for encryption
+	const iv = base64ToBytes(IV_STRING);
+	return bytesToBase64(
+		new Uint8Array(
+			await window.crypto.subtle.decrypt(
+				{ name: "AES-GCM", iv },
+				key,
+				base64ToBytes(ciphertext),
+			),
+		),
+	);
+}
+
+/** This function assumes that each string of data is at most 99 characters */
+export async function encryptData(data: string[]): Promise<string> {
+	const newData = [];
+	for (const word of data) {
+		let l = `${word.length}`;
+		while (l.length < 2) l = "0" + l;
+		newData.push(`${l}${word}`);
+	}
+	return await basicEncrypt(newData.join(":"));
+}
