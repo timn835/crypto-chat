@@ -7,12 +7,14 @@ import {
 } from "react";
 import { sleep } from "./lib/utils";
 import type { User } from "./lib/types";
+import { io, type Socket } from "socket.io-client";
 
 export interface AuthContext {
 	isAuthenticated: boolean;
 	login: (data: string) => Promise<void>;
 	logout: () => Promise<void>;
 	user: User | null;
+	socket: Socket | null;
 }
 
 const AuthContext = createContext<AuthContext | null>(null);
@@ -35,6 +37,8 @@ function setStoredUser(user: User | null) {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
 	const [user, setUser] = useState<User | null>(getStoredUser());
+	const [socket, setSocket] = useState<Socket | null>(null);
+
 	const isAuthenticated = !!user;
 
 	const logout = useCallback(async () => {
@@ -48,16 +52,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		console.log(data);
 		await sleep(500);
 		const user = { id: "userA123", handle: "Timmy" };
+
+		setSocket(socket);
 		setStoredUser(user);
 		setUser(user);
 	}, []);
 
 	useEffect(() => {
-		setUser(getStoredUser());
+		const storedUser = getStoredUser();
+		setUser(storedUser);
+		if (!storedUser) return;
+
+		setUser(storedUser);
+
+		const socket = io("http://localhost:3000", {
+			auth: {
+				userId: storedUser.id,
+			},
+		});
+
+		setSocket(socket);
+
+		return () => {
+			socket.disconnect();
+		};
 	}, []);
 
 	return (
-		<AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
+		<AuthContext.Provider
+			value={{ isAuthenticated, user, login, logout, socket }}>
 			{children}
 		</AuthContext.Provider>
 	);

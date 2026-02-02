@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Link, Outlet, redirect, useRouter } from "@tanstack/react-router";
 
 import { useAuth } from "../auth";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_auth")({
 	beforeLoad: ({ context }) => {
@@ -17,10 +18,10 @@ export const Route = createFileRoute("/_auth")({
 function AuthLayout() {
 	const router = useRouter();
 	const navigate = Route.useNavigate();
-	const auth = useAuth();
+	const { user, logout } = useAuth();
 
 	const handleLogout = () => {
-		auth.logout().then(() => {
+		logout().then(() => {
 			router.invalidate().finally(() => {
 				navigate({ to: "/" });
 			});
@@ -29,30 +30,48 @@ function AuthLayout() {
 
 	return (
 		<div className="p-2 h-full">
-			<h1>Authenticated Route</h1>
-			<p>This route's content is only visible to authenticated users.</p>
-			<ul className="py-2 flex gap-2">
+			<ul className="px-8 py-2 flex items-center justify-between gap-2">
 				<li>
-					<Link
-						to="/dashboard"
-						className="hover:underline data-[status='active']:font-semibold">
-						Dashboard
-					</Link>
+					<div className="w-full h-20 flex items-center text-xl font-bold">
+						<img
+							src="/malicious_clown_fish.png"
+							className="w-full h-full object-contain"
+						/>
+						{user?.handle}
+					</div>
 				</li>
 				<li>
-					<Link
-						to="/chats"
-						className="hover:underline data-[status='active']:font-semibold">
-						Chats
-					</Link>
+					<Button
+						variant="outline"
+						size="lg"
+						className="h-16 w-40 text-md font-semibold">
+						<Link to="/dashboard">Dashboard</Link>
+					</Button>
 				</li>
 				<li>
-					<button
-						type="button"
-						className="hover:underline"
+					<Button
+						variant="outline"
+						size="lg"
+						className="h-16 w-40 text-md font-semibold">
+						<Link to="/chats">Chats</Link>
+					</Button>
+				</li>
+				<li>
+					<Button
+						variant="outline"
+						size="lg"
+						className="h-16 w-40 text-md font-semibold">
+						<Link to="/profile">Profile</Link>
+					</Button>
+				</li>
+				<li>
+					<Button
+						variant="outline"
+						size="lg"
+						className="h-16 w-40 text-md font-semibold"
 						onClick={handleLogout}>
 						Logout
-					</button>
+					</Button>
 				</li>
 			</ul>
 			<hr />

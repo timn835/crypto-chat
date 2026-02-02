@@ -11,9 +11,15 @@ export const Route = createFileRoute("/_auth/chats")({
 });
 
 function InvoicesRoute() {
-	const { user } = useAuth();
+	const { user, socket } = useAuth();
 	const data = Route.useLoaderData();
+
 	if (!data || !user) return <div>Something went wrong</div>;
+
+	const requestChat = (userId: string) => {
+		if (!socket) return;
+		socket.emit("request", { userId });
+	};
 
 	return (
 		<div className="grid grid-cols-3 md:grid-cols-5 min-h-125">

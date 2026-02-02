@@ -1,4 +1,7 @@
+import { useAuth } from "@/auth";
 import { fetchMessagesByChatId } from "@/chats";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { Message } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
@@ -19,6 +22,12 @@ export const Route = createFileRoute("/_auth/chats/$chatId")({
 function ChatPage() {
 	// Green for your message, blue for other persons message
 	const { chat, placement } = Route.useLoaderData();
+	const { socket } = useAuth();
+
+	const sendMessage = () => {
+		if (!socket) return;
+		socket.emit("message", { message: "hello" });
+	};
 
 	return (
 		<section className="grid gap-2">
@@ -37,6 +46,10 @@ function ChatPage() {
 					</p>
 				);
 			})}
+			<div className="flex justify-center items-center">
+				<Input placeholder="Message..." />
+				<Button onClick={sendMessage}>Send</Button>
+			</div>
 		</section>
 	);
 }
