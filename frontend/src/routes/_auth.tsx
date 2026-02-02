@@ -1,8 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Link, Outlet, redirect, useRouter } from "@tanstack/react-router";
-
-import { useAuth } from "../auth";
-import { Button } from "@/components/ui/button";
+import {
+	createFileRoute,
+	Link,
+	Outlet,
+	redirect,
+} from "@tanstack/react-router";
+import { Navbar } from "@/components/Navbar";
+import { Drawer } from "@/components/ui/drawer";
+import { fetchChats } from "@/chats";
+import { useAuth } from "@/auth";
 
 export const Route = createFileRoute("/_auth")({
 	beforeLoad: ({ context }) => {
@@ -12,70 +17,56 @@ export const Route = createFileRoute("/_auth")({
 			});
 		}
 	},
+	loader: async ({ context }) => ({
+		chats: await fetchChats(context.auth.user!.id),
+	}),
 	component: AuthLayout,
 });
 
 function AuthLayout() {
-	const router = useRouter();
-	const navigate = Route.useNavigate();
-	const { user, logout } = useAuth();
-
-	const handleLogout = () => {
-		logout().then(() => {
-			router.invalidate().finally(() => {
-				navigate({ to: "/" });
-			});
-		});
-	};
-
+	const { user } = useAuth();
+	const data = Route.useLoaderData();
+	if (!data || !user) return <div>Something went wrong</div>;
 	return (
-		<div className="p-2 h-full">
-			<ul className="px-8 py-2 flex items-center justify-between gap-2">
-				<li>
-					<div className="w-full h-20 flex items-center text-xl font-bold">
-						<img
-							src="/malicious_clown_fish.png"
-							className="w-full h-full object-contain"
-						/>
-						{user?.handle}
+		<Drawer>
+			<div className="p-2">
+				<Navbar />
+				<div className="min-h-screen grid md:grid-cols-7 gap-2">
+					<div className="hidden md:block md:col-span-1 p-4 border-2 h-full rounded-md">
+						<p className="mb-2">Your chats</p>
+						<ol className="grid gap-2">
+							{data.chats.map(
+								({
+									userIdA,
+									userIdB,
+									handleA,
+									handleB,
+									messages,
+								}) => {
+									const chatId = `${userIdA}:${userIdB}`;
+									return (
+										<li key={chatId}>
+											<Link
+												to="/chats/$chatId"
+												params={{ chatId: chatId }}
+												className="text-blue-600 hover:opacity-75"
+												activeProps={{
+													className:
+														"font-bold underline",
+												}}>
+												{`${user.id === userIdA ? handleB : handleA}(${messages})`}
+											</Link>
+										</li>
+									);
+								},
+							)}
+						</ol>
 					</div>
-				</li>
-				<li>
-					<Button
-						variant="outline"
-						size="lg"
-						className="h-16 w-40 text-md font-semibold">
-						<Link to="/dashboard">Dashboard</Link>
-					</Button>
-				</li>
-				<li>
-					<Button
-						variant="outline"
-						size="lg"
-						className="h-16 w-40 text-md font-semibold">
-						<Link to="/chats">Chats</Link>
-					</Button>
-				</li>
-				<li>
-					<Button
-						variant="outline"
-						size="lg"
-						className="h-16 w-40 text-md font-semibold">
-						<Link to="/profile">Profile</Link>
-					</Button>
-				</li>
-				<li>
-					<Button
-						variant="outline"
-						size="lg"
-						className="h-16 w-40 text-md font-semibold"
-						onClick={handleLogout}>
-						Logout
-					</Button>
-				</li>
-			</ul>
-			<hr />
-			<Outlet />
-		</div>
+					<div className="col-span-6 p-4 border-2 h-full rounded-md">
+						<Outlet />
+					</div>
+				</div>
+			</div>
+		</Drawer>
 	);
 }
