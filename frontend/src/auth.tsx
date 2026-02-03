@@ -5,13 +5,13 @@ import {
 	useEffect,
 	useState,
 } from "react";
-import { sleep } from "./lib/utils";
-import type { User } from "./lib/types";
 import { io, type Socket } from "socket.io-client";
+import type { User } from "./lib/types";
+import { bytesToBase64 } from "./lib/utils";
 
 export interface AuthContext {
 	isAuthenticated: boolean;
-	login: (data: string) => Promise<void>;
+	login: (data: string, iv: Uint8Array<ArrayBuffer>) => Promise<void>;
 	logout: () => Promise<void>;
 	user: User | null;
 	socket: Socket | null;
@@ -42,21 +42,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 	const isAuthenticated = !!user;
 
 	const logout = useCallback(async () => {
-		await sleep(250);
+		// Disconnect socket
+
+		console.log("socket is:", socket);
+		// socket?.disconnect();
+
+		// Logout to remove the cookie
+		const response = await fetch(
+			`${import.meta.env.VITE_BACKEND_URL}/logout`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				credentials: "include",
+				body: JSON.stringify({ socketId: socket?.id || "" }),
+			},
+		);
+		if (!response.ok) throw Error("Unable to log out");
 
 		setStoredUser(null);
 		setUser(null);
-	}, []);
+	}, [socket]);
 
-	const login = useCallback(async (data: string) => {
-		console.log(data);
-		await sleep(500);
-		const user = { id: "userA123", handle: "Timmy" };
+	const login = useCallback(
+		async (data: string, iv: Uint8Array<ArrayBuffer>) => {
+			const response = await fetch(
+				`${import.meta.env.VITE_BACKEND_URL}/login`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					credentials: "include",
+					body: JSON.stringify({ data, iv: bytesToBase64(iv) }),
+				},
+			);
+			if (!response.ok) {
+				const { message }: { message: string } = await response.json();
+				throw Error(message);
+			}
+			const { user }: { user: User } = await response.json();
 
-		setSocket(socket);
-		setStoredUser(user);
-		setUser(user);
-	}, []);
+			// Connect socket
+			const socket = io(import.meta.env.VITE_BACKEND_URL, {
+				auth: {
+					userId: user.id,
+				},
+			});
+			console.log("logging in, socket is:", socket);
+			setSocket(socket);
+
+			// Set user
+			setStoredUser(user);
+			setUser(user);
+		},
+		[],
+	);
 
 	useEffect(() => {
 		const storedUser = getStoredUser();
@@ -65,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 		setUser(storedUser);
 
-		const socket = io("http://localhost:3000", {
+		const socket = io(import.meta.env.VITE_BACKEND_URL, {
 			auth: {
 				userId: storedUser.id,
 			},

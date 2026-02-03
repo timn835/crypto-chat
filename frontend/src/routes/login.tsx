@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { cn, EMAIL_REGEX, encryptData, sleep } from "@/lib/utils";
+import { cn, EMAIL_REGEX, encryptData, getRandomIV, sleep } from "@/lib/utils";
 import { useState, type FormEvent } from "react";
 import { useAuth } from "../auth";
 
@@ -86,23 +86,21 @@ function LoginComponent() {
 			}
 
 			// Encrypt data
-			const dataToSend = await encryptData([
-				handle,
-				password,
-				email,
-				create ? "1" : "0",
-			]);
+			const iv = getRandomIV();
+			const dataToSend = await encryptData(
+				[handle, password, email, create ? "1" : "0"],
+				iv,
+			);
 
-			// console.log(dataToSend);
-			// console.log(atob(await basicDecrypt(dataToSend)));
-
-			await auth.login(dataToSend);
+			await auth.login(dataToSend, iv);
 			await router.invalidate();
 			await sleep(1);
 
 			await navigate({ to: "/dashboard" });
-		} catch (error) {
-			console.error("Error logging in: ", error);
+		} catch (error: any) {
+			if (error.message === "Handle already taken")
+				setError("handleTaken");
+			else setError("invalidCreds");
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -198,6 +196,16 @@ function LoginComponent() {
 							<Button className="w-full">Forgot password</Button>
 						</Link>
 					</div>
+					{error === "handleTaken" ? (
+						<p className="text-red-500 text-center">
+							Handle is taken
+						</p>
+					) : null}
+					{error === "invalidCreds" ? (
+						<p className="text-red-500 text-center">
+							Invalid credentials
+						</p>
+					) : null}
 				</fieldset>
 			</form>
 			<div className="grid md:grid-cols-2 gap-4 min-w-75 md:max-w-3xl">

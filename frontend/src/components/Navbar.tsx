@@ -11,12 +11,15 @@ export function Navbar() {
 	const router = useRouter();
 	const navigate = useNavigate();
 
-	const handleLogout = () => {
-		logout().then(() => {
-			router.invalidate().finally(() => {
-				navigate({ to: "/" });
-			});
-		});
+	const handleLogout = async () => {
+		try {
+			await logout();
+			router.invalidate();
+		} catch (error) {
+			console.error(error);
+		} finally {
+			navigate({ to: "/" });
+		}
 	};
 
 	return (
