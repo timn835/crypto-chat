@@ -67,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 	const login = useCallback(
 		async (data: string, iv: Uint8Array<ArrayBuffer>) => {
+			console.log("login useCallback running!!!");
 			const response = await fetch(
 				`${import.meta.env.VITE_BACKEND_URL}/login`,
 				{

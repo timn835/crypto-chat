@@ -22,7 +22,6 @@ import { decryptData, EMAIL_REGEX } from "./lib/utils";
 dotenv.config();
 
 const dbUsers: DBUser[] = [];
-const connectedUserIDs = new Set<string>();
 
 const fastify: FastifyInstance = Fastify({
 	logger: true,
@@ -89,6 +88,27 @@ declare module "fastify" {
 	}
 }
 
+fastify.after(() => {
+	fastify.addHook("preHandler", (request, reply, next) => {
+		if (!request.url.startsWith("/auth/")) {
+			next();
+			return;
+		}
+		try {
+			const refreshToken = request.cookies[COOKIE_NAME];
+			if (!refreshToken) throw Error("No cookie");
+			const { id }: { id: string; iat: number; exp: number } =
+				fastify.jwt.verify(refreshToken);
+			request.user = id;
+			next();
+		} catch (error) {
+			return reply.status(401).send({
+				message: `Access denied`,
+			});
+		}
+	});
+});
+
 fastify.ready((err) => {
 	if (err) throw err;
 
@@ -104,7 +124,11 @@ fastify.ready((err) => {
 		});
 
 		socket.on("disconnect", () => {
-			console.log("Socket disconnected! ID:", socket.id);
+			console.log(
+				"Socket disconnected! ID:",
+				socket.id,
+				socket.handshake.auth,
+			);
 		});
 	});
 });
@@ -118,90 +142,93 @@ fastify.get("/", (request: FastifyRequest, reply: FastifyReply) => {
 fastify.post<{ Body: { data: string; iv: string } }>(
 	"/login",
 	{
-		preValidation: async (request, _reply, done) => {
-			// Check encrypted data
+		preValidation: async (request, _reply) => {
 			const { data, iv } = request.body;
+
+			// Basic validation
 			if (!data || !iv || data.length > 100 || iv.length > 100) {
-				done(new Error("Invalid credentials"));
-				return;
+				throw new Error("Invalid credentials");
 			}
 
-			// Decrypt data
+			// Decrypt
 			try {
 				request.decryptedLoginData = await decryptData(data, iv);
-				done();
-			} catch (error) {
-				done(new Error("Invalid credentials"));
-				return;
+			} catch (err) {
+				throw new Error("Invalid credentials");
 			}
 		},
 	},
 	async (request, reply) => {
 		const [handle, password, email, create] = request.decryptedLoginData!;
 
-		// Check required parameters
-		if (!handle || !password || (create !== "0" && create !== "1"))
+		// Required params
+		if (!handle || !password || (create !== "0" && create !== "1")) {
 			return reply.status(401).send({ message: "Invalid credentials" });
+		}
 
-		// Check length
+		// Length check
 		if (
 			handle.length > 20 ||
 			password.length > 30 ||
 			(email && email.length > 99)
-		)
+		) {
 			return reply.status(401).send({ message: "Invalid credentials" });
+		}
 
-		// Check email
-		if (email && !EMAIL_REGEX.test(email))
+		// Email check
+		if (email && !EMAIL_REGEX.test(email)) {
 			return reply.status(401).send({ message: "Invalid credentials" });
+		}
 
 		let dbUser: DBUser | undefined;
 
-		// Create user
 		if (create === "1") {
-			// Check if handle already exists
+			// Create new user
 			if (
 				dbUsers.find(
 					({ handle: dbUserHandle }) => handle === dbUserHandle,
 				)
-			)
+			) {
 				return reply
 					.status(401)
 					.send({ message: "Handle already taken" });
+			}
 
-			// Hash password
 			const hash = await argon2.hash(password);
 			dbUser = { id: randomUUID(), handle, hash, email: email || "" };
 
-			// Store the user
 			dbUsers.push(dbUser);
 		} else {
-			// Check if user exists
+			// Login existing user
 			dbUser = dbUsers.find(
 				({ handle: dbUserHandle }) => dbUserHandle === handle,
 			);
-			if (!dbUser)
+			if (!dbUser) {
 				return reply
 					.status(401)
 					.send({ message: "Invalid credentials" });
+			}
 
-			// Verify password hash
 			const isRightPassword = await argon2.verify(dbUser.hash, password);
-			if (!isRightPassword)
+			if (!isRightPassword) {
 				return reply
 					.status(401)
 					.send({ message: "Invalid credentials" });
+			}
 		}
 
-		// Login existing user
+		// Sign JWT and set cookie
 		const refreshToken = fastify.jwt.sign(
 			{ id: dbUser.id },
-			{ expiresIn: 3122064000 }, // 60*60*24*365*99 = 99 years
+			{ expiresIn: 3122064000 }, // 99 years
 		);
+
 		reply.setCookie(COOKIE_NAME, refreshToken, {
 			...STANDARD_COOKIE_OPTIONS,
 			...COOKIE_OPTIONS,
 		});
+
+		console.log(dbUsers);
 
 		return reply.send({ user: { id: dbUser.id, handle: dbUser.handle } });
 	},
@@ -215,6 +242,31 @@ fastify.post<{ Body: { socketId: string } }>("/logout", (request, reply) => {
 	fastify.io.in(request.body.socketId).disconnectSockets();
 	reply.send({ message: "ok" });
 });
+
+fastify.get<{ Querystring: { handle: string } }>(
+	"/auth/search",
+	(request, reply) => {
+		console.log(dbUsers);
+		const handle = request.query.handle;
+		const users: { id: string; handle: string; connected: boolean }[] = [];
+		const connectedUsers = new Set<string>();
+		for (const socket of fastify.io.sockets.sockets.values())
+			connectedUsers.add(socket.handshake.auth.userId);
+
+		if (handle.length <= 20) {
+			for (const user of dbUsers) {
+				if (user.id === request.user) continue;
+				if (user.handle.toLowerCase().includes(handle))
+					users.push({
+						id: user.id,
+						handle: user.handle,
+						connected: connectedUsers.has(user.id),
+					});
+			}
+		}
+		reply.send({ users });
+	},
+);
 
 const start = async () => {
 	try {

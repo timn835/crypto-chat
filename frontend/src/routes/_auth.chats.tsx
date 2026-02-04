@@ -14,7 +14,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import type { User } from "@/lib/types";
-import { cn, sleep } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 
@@ -56,7 +56,7 @@ function InvoicesRoute() {
 				setError("handle");
 				return;
 			}
-			const handle = handleField.toString().trim();
+			const handle = handleField.toString().toLowerCase().trim();
 
 			// Check maximum length on inputs
 			if (handle.length > 20) {
@@ -64,26 +64,46 @@ function InvoicesRoute() {
 				return;
 			}
 
-			await sleep(1000);
-			if (handle === "kim")
-				setFoundUsers([
-					{
-						id: "987rty",
-						handle: "Kim",
-						connected: true,
+			//////////////////////////////////////////////////////////////////////////////////////////////////
+
+			const response = await fetch(
+				`${import.meta.env.VITE_BACKEND_URL}/auth/search?handle=${handle}`,
+				{
+					method: "GET",
+					headers: {
+						"Content-Type": "application/json",
 					},
-					{
-						id: "876bgr",
-						handle: "Kimmy",
-						connected: false,
-					},
-					{
-						id: "032",
-						handle: "Kimosaurus",
-						connected: true,
-					},
-				]);
-			else setFoundUsers([]);
+					credentials: "include",
+				},
+			);
+			if (!response.ok) {
+				const { message }: { message: string } = await response.json();
+				throw Error(message);
+			}
+			const { users } = await response.json();
+			setFoundUsers(users);
+			//////////////////////////////////////////////////////////////////////////////////////////////////
+
+			// await sleep(1000);
+			// if (handle === "kim")
+			// 	setFoundUsers([
+			// 		{
+			// 			id: "987rty",
+			// 			handle: "Kim",
+			// 			connected: true,
+			// 		},
+			// 		{
+			// 			id: "876bgr",
+			// 			handle: "Kimmy",
+			// 			connected: false,
+			// 		},
+			// 		{
+			// 			id: "032",
+			// 			handle: "Kimosaurus",
+			// 			connected: true,
+			// 		},
+			// 	]);
+			// else setFoundUsers([]);
 		} catch (error) {
 			console.error("Error searching handle: ", error);
 		} finally {
