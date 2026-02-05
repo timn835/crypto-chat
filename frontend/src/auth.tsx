@@ -43,9 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 	const logout = useCallback(async () => {
 		// Disconnect socket
-
-		console.log("socket is:", socket);
-		// socket?.disconnect();
+		socket?.disconnect();
 
 		// Logout to remove the cookie
 		const response = await fetch(
@@ -67,7 +65,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 	const login = useCallback(
 		async (data: string, iv: Uint8Array<ArrayBuffer>) => {
-			console.log("login useCallback running!!!");
 			const response = await fetch(
 				`${import.meta.env.VITE_BACKEND_URL}/login`,
 				{
@@ -87,11 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 			// Connect socket
 			const socket = io(import.meta.env.VITE_BACKEND_URL, {
-				auth: {
-					userId: user.id,
-				},
+				withCredentials: true,
 			});
-			console.log("logging in, socket is:", socket);
 			setSocket(socket);
 
 			// Set user
@@ -101,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		[],
 	);
 
+	// This useEffect will reconnect whenever we refresh the page
 	useEffect(() => {
 		const storedUser = getStoredUser();
 		setUser(storedUser);
@@ -109,9 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		setUser(storedUser);
 
 		const socket = io(import.meta.env.VITE_BACKEND_URL, {
-			auth: {
-				userId: storedUser.id,
-			},
+			withCredentials: true,
 		});
 
 		setSocket(socket);
@@ -120,6 +113,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 			socket.disconnect();
 		};
 	}, []);
+
+	// This useEffect will listen to whenever we receive messages/notifications/events from the socket
+	useEffect(() => {
+		socket?.on("chat-started", (data) => {
+			// console.log("data is", data);
+			alert(JSON.stringify(data));
+		});
+	}, [socket]);
 
 	return (
 		<AuthContext.Provider

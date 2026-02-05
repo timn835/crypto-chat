@@ -34,6 +34,7 @@ function LoginComponent() {
 
 	const onFormSubmit = async (evt: FormEvent<HTMLFormElement>) => {
 		setIsSubmitting(true);
+		setError("");
 		try {
 			evt.preventDefault();
 

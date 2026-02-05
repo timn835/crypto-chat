@@ -11,7 +11,7 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 				[];
 			const connectedUsers = new Set<string>();
 			for (const socket of fastify.io.sockets.sockets.values())
-				connectedUsers.add(socket.handshake.auth.userId);
+				connectedUsers.add(socket.userId);
 
 			if (handle.length <= 20) {
 				for (const user of dbUsers) {

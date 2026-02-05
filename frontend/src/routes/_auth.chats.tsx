@@ -33,14 +33,9 @@ function InvoicesRoute() {
 	const [foundUsers, setFoundUsers] = useState<
 		(User & { connected: boolean })[] | null
 	>();
-	const [chosenHandle, setChosenHandle] = useState<string>("");
+	const [chosenUser, setChosenUser] = useState<User | null>(null);
 
 	if (!data || !user) return <div>Something went wrong</div>;
-
-	// const requestChat = (userId: string) => {
-	// 	if (!socket) return;
-	// 	socket.emit("request", { userId });
-	// };
 
 	const onFormSubmit = async (evt: FormEvent<HTMLFormElement>) => {
 		setIsSubmitting(true);
@@ -64,8 +59,6 @@ function InvoicesRoute() {
 				return;
 			}
 
-			//////////////////////////////////////////////////////////////////////////////////////////////////
-
 			const response = await fetch(
 				`${import.meta.env.VITE_BACKEND_URL}/auth/search?handle=${handle}`,
 				{
@@ -82,28 +75,6 @@ function InvoicesRoute() {
 			}
 			const { users } = await response.json();
 			setFoundUsers(users);
-			//////////////////////////////////////////////////////////////////////////////////////////////////
-
-			// await sleep(1000);
-			// if (handle === "kim")
-			// 	setFoundUsers([
-			// 		{
-			// 			id: "987rty",
-			// 			handle: "Kim",
-			// 			connected: true,
-			// 		},
-			// 		{
-			// 			id: "876bgr",
-			// 			handle: "Kimmy",
-			// 			connected: false,
-			// 		},
-			// 		{
-			// 			id: "032",
-			// 			handle: "Kimosaurus",
-			// 			connected: true,
-			// 		},
-			// 	]);
-			// else setFoundUsers([]);
 		} catch (error) {
 			console.error("Error searching handle: ", error);
 		} finally {
@@ -168,9 +139,10 @@ function InvoicesRoute() {
 												<TableCell className="text-right">
 													<DialogTrigger
 														onClick={() =>
-															setChosenHandle(
+															setChosenUser({
 																handle,
-															)
+																id,
+															})
 														}
 														className="bg-blue-100 p-2 rounded-md cursor-pointer hover:bg-blue-300 transition-colors">
 														Select
@@ -181,7 +153,7 @@ function InvoicesRoute() {
 									)}
 								</TableBody>
 							</Table>
-							<StartChatCart handle={chosenHandle} />
+							<StartChatCart user={chosenUser} />
 						</Dialog>
 					) : (
 						<p>No users were found</p>

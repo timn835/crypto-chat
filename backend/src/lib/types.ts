@@ -3,4 +3,17 @@ export type DBUser = {
 	handle: string;
 	hash: string;
 	email: string;
+	chatIDs: string[]; // all ids user is currently participating in
+};
+
+export type Message = {
+	text: string;
+	time: number;
+};
+
+export type DBChat = {
+	id: string;
+	userIDA: string;
+	userIDB: string;
+	messages: Message[];
 };

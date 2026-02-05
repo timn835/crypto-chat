@@ -6,13 +6,16 @@ import Fastify, { FastifyInstance } from "fastify";
 import fastifySocketIO from "fastify-socket.io";
 import { Server } from "socket.io";
 import { COOKIE_NAME } from "./lib/constants";
-import type { DBUser } from "./lib/types";
+import type { DBChat, DBUser } from "./lib/types";
 import { authRoutes } from "./routes/auth";
 import { chatRoutes } from "./routes/chat";
+import { randomUUID } from "node:crypto";
 
 dotenv.config();
 
 export const dbUsers: DBUser[] = [];
+
+export const dbChats: DBChat[] = [];
 
 const fastify: FastifyInstance = Fastify({
 	logger: true,
@@ -61,7 +64,8 @@ fastify.register(fcookie, {
 // The 'io' decorator is not automatically typed, so we use declaration merging below
 fastify.register(fastifySocketIO, {
 	cors: {
-		origin: "*", // Adjust CORS as needed for your client
+		origin: "http://localhost:5173",
+		credentials: true,
 		methods: ["GET", "POST"],
 	},
 });
@@ -79,7 +83,14 @@ declare module "fastify" {
 	}
 }
 
+declare module "socket.io" {
+	interface Socket {
+		userId: string;
+	}
+}
+
 fastify.after(() => {
+	// Add request authentication
 	fastify.addHook("preHandler", (request, reply, next) => {
 		if (!request.url.startsWith("/auth/")) {
 			next();
@@ -98,6 +109,34 @@ fastify.after(() => {
 			});
 		}
 	});
+
+	// Add socket authentication
+	fastify.io.use(async (socket, next) => {
+		try {
+			const cookieHeader = socket.request.headers.cookie;
+			if (!cookieHeader) {
+				return next(new Error("No cookie"));
+			}
+
+			const cookies = Object.fromEntries(
+				cookieHeader.split("; ").map((c) => c.split("=")),
+			);
+			const token = cookies[COOKIE_NAME];
+
+			if (!token) {
+				return next(new Error("No token"));
+			}
+			const payload: { id: string; iat: number; exp: number } =
+				fastify.jwt.verify(token);
+
+			// attach user
+			socket.userId = payload.id;
+
+			next();
+		} catch (err) {
+			next(new Error("Unauthorized"));
+		}
+	});
 });
 
 fastify.ready((err) => {
@@ -108,18 +147,49 @@ fastify.ready((err) => {
 		console.log("Socket connected! ID:", socket.id, socket.handshake.auth);
 
 		// Listen for a custom event from the client
-		socket.on("message", (data: { message: string }) => {
-			console.log("Received message from client:", data.message);
-			// Emit a response back to the client
-			socket.emit("server-message", `Server received: ${data}`);
+		socket.on("start-chat", (data: { message: string; userId: string }) => {
+			const userIDA = socket.userId;
+			const userIDB = data.userId;
+
+			// Check that there isn't already a chat between the 2 users
+			const userA = dbUsers.find((dbUser) => dbUser.id === userIDA)!;
+			for (const chatID of userA.chatIDs) {
+				const chat = dbChats.find((dbChat) => dbChat.id === chatID)!;
+				if (chat.userIDA === userIDB || chat.userIDB === userIDB) {
+					return;
+				}
+			}
+
+			const newChatID = randomUUID();
+
+			// Create new conversation
+			const newChat: DBChat = {
+				id: newChatID,
+				userIDA,
+				userIDB,
+				messages: [
+					{
+						text: data.message,
+						time: new Date().getTime(),
+					},
+				],
+			};
+			dbChats.push(newChat);
+
+			// Join userA
+			socket.join(newChatID);
+
+			// Join userB if connected
+			for (const bSocket of fastify.io.sockets.sockets.values()) {
+				if (bSocket.userId === userIDB) bSocket.join(newChatID);
+			}
+
+			// Emit chat-started event to the room
+			socket.to(newChatID).emit("chat-started", { newChat });
 		});
 
 		socket.on("disconnect", () => {
-			console.log(
-				"Socket disconnected! ID:",
-				socket.id,
-				socket.handshake.auth,
-			);
+			console.log("Socket disconnected! ID:", socket.id, socket.userId);
 		});
 	});
 });

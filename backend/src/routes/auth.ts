@@ -74,7 +74,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 				}
 
 				const hash = await argon2.hash(password);
-				dbUser = { id: randomUUID(), handle, hash, email: email || "" };
+				dbUser = {
+					id: randomUUID(),
+					handle,
+					hash,
+					email: email || "",
+					chatIDs: [],
+				};
 
 				dbUsers.push(dbUser);
 			} else {
