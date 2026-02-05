@@ -6,8 +6,9 @@ import {
 	useState,
 } from "react";
 import { io, type Socket } from "socket.io-client";
-import type { User } from "./lib/types";
+import type { ChatHeader, User } from "./lib/types";
 import { bytesToBase64 } from "./lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
 
 export interface AuthContext {
 	isAuthenticated: boolean;
@@ -38,6 +39,7 @@ function setStoredUser(user: User | null) {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
 	const [user, setUser] = useState<User | null>(getStoredUser());
 	const [socket, setSocket] = useState<Socket | null>(null);
+	const queryClient = useQueryClient();
 
 	const isAuthenticated = !!user;
 
@@ -116,10 +118,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 	// This useEffect will listen to whenever we receive messages/notifications/events from the socket
 	useEffect(() => {
-		socket?.on("chat-started", (data) => {
-			// console.log("data is", data);
-			alert(JSON.stringify(data));
-		});
+		socket?.on(
+			"chat-started",
+			({ newChatHeader }: { newChatHeader: ChatHeader }) => {
+				queryClient.setQueryData(["chats"], (oldData: ChatHeader[]) => [
+					newChatHeader,
+					...oldData,
+				]);
+			},
+		);
 	}, [socket]);
 
 	return (

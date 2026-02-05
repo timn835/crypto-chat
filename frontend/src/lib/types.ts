@@ -3,12 +3,12 @@ export type User = {
 	handle: string;
 };
 
-export type Chat = {
-	userIdA: string;
-	userIdB: string; // the id of the chat will be userIdA:userIdB
-	handleA: string;
-	handleB: string;
-	messages: number;
+export type ChatHeader = {
+	id: string;
+	otherUserHandle: string;
+	isFirstUser: boolean;
+	numOfMessages: number;
+	lastMessageHeader: string;
 };
 
 export type Message = {

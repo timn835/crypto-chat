@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
-import { dbUsers } from "..";
+import { dbChats, dbUsers } from "..";
+import type { ChatHeader } from "../lib/types";
 
 export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 	// Search for available users to chat with
@@ -28,12 +29,23 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 		},
 	);
 
-	// // Start a chat with another user
-	// fastify.post<{Body: {userId: string, initialMessage: string}}>("/auth/start-chat", (request, reply) => {
-	//     // Check userId is not user
-
-	//     // Check user doesn't already have an existing chat with userId
-
-	//     // Create the chat
-	// })
+	fastify.get("/auth/chats", (request, reply) => {
+		const userID = request.user;
+		const chatHeaders: ChatHeader[] = dbChats
+			.filter(
+				({ userIDA, userIDB }) =>
+					userIDA === userID || userIDB === userID,
+			)
+			.map(({ id, messages, userIDA, userHandleA, userHandleB }) => ({
+				id,
+				otherUserHandle: userIDA === userID ? userHandleB : userHandleA,
+				numOfMessages: messages.length,
+				isFirstUser: userIDA === userID,
+				lastMessageHeader:
+					messages[messages.length - 1]?.text?.slice(0, 10) || "",
+			}));
+		reply.send({
+			chatHeaders,
+		});
+	});
 };

@@ -1,8 +1,7 @@
 import { useAuth } from "@/auth";
-import { fetchChats } from "@/chats";
 import { StartChatCart } from "@/components/StartChatCard";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,15 +18,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 
 export const Route = createFileRoute("/_auth/chats")({
-	loader: async ({ context }) => ({
-		chats: await fetchChats(context.auth.user!.id),
-	}),
 	component: InvoicesRoute,
 });
 
 function InvoicesRoute() {
 	const { user } = useAuth();
-	const data = Route.useLoaderData();
 	const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 	const [error, setError] = useState<string>("");
 	const [foundUsers, setFoundUsers] = useState<
@@ -35,7 +30,7 @@ function InvoicesRoute() {
 	>();
 	const [chosenUser, setChosenUser] = useState<User | null>(null);
 
-	if (!data || !user) return <div>Something went wrong</div>;
+	if (!user) return <div>Something went wrong</div>;
 
 	const onFormSubmit = async (evt: FormEvent<HTMLFormElement>) => {
 		setIsSubmitting(true);
@@ -107,7 +102,11 @@ function InvoicesRoute() {
 			<div className="">
 				{!!foundUsers && !isSubmitting ? (
 					foundUsers.length ? (
-						<Dialog>
+						<Dialog
+							open={!!chosenUser}
+							onOpenChange={(open) => {
+								if (!open) setChosenUser(null);
+							}}>
 							<Table>
 								<TableHeader>
 									<TableRow>
@@ -137,23 +136,25 @@ function InvoicesRoute() {
 														: "Offline"}
 												</TableCell>
 												<TableCell className="text-right">
-													<DialogTrigger
+													<Button
 														onClick={() =>
 															setChosenUser({
 																handle,
 																id,
 															})
-														}
-														className="bg-blue-100 p-2 rounded-md cursor-pointer hover:bg-blue-300 transition-colors">
+														}>
 														Select
-													</DialogTrigger>
+													</Button>
 												</TableCell>
 											</TableRow>
 										),
 									)}
 								</TableBody>
 							</Table>
-							<StartChatCart user={chosenUser} />
+							<StartChatCart
+								user={chosenUser}
+								setChosenUser={setChosenUser}
+							/>
 						</Dialog>
 					) : (
 						<p>No users were found</p>

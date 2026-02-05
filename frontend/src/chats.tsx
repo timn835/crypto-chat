@@ -1,4 +1,4 @@
-import type { Chat, Message } from "./lib/types";
+import type { ChatHeader, Message } from "./lib/types";
 import { sleep } from "./lib/utils";
 
 const chats: Record<string, Message[]> = {
@@ -36,32 +36,28 @@ const chats: Record<string, Message[]> = {
 	],
 };
 
-export async function fetchChats(userId: string): Promise<Chat[]> {
-	console.log("fetching chats for userId:", userId);
-	await sleep(2000);
-	return [
-		{
-			userIdA: "userA123",
-			userIdB: "userB123",
-			handleA: "Tim",
-			handleB: "Alice",
-			messages: 10,
-		},
-		{
-			userIdA: "userA123",
-			userIdB: "userC123",
-			handleA: "Tim",
-			handleB: "Bob",
-			messages: 12,
-		},
-		{
-			userIdA: "userD123",
-			userIdB: "userA123",
-			handleA: "Tom",
-			handleB: "Tim",
-			messages: 4,
-		},
-	];
+export async function fetchChats(): Promise<ChatHeader[]> {
+	try {
+		const response = await fetch(
+			`${import.meta.env.VITE_BACKEND_URL}/auth/chats`,
+			{
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				credentials: "include",
+			},
+		);
+		if (!response.ok) {
+			const { message }: { message: string } = await response.json();
+			throw Error(message);
+		}
+		const { chatHeaders } = await response.json();
+		return chatHeaders;
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
 }
 
 export async function fetchMessagesByChatId(

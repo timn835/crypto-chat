@@ -15,5 +15,15 @@ export type DBChat = {
 	id: string;
 	userIDA: string;
 	userIDB: string;
+	userHandleA: string;
+	userHandleB: string;
 	messages: Message[];
+};
+
+export type ChatHeader = {
+	id: string;
+	otherUserHandle: string;
+	isFirstUser: boolean;
+	numOfMessages: number;
+	lastMessageHeader: string;
 };

@@ -6,7 +6,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import fastifySocketIO from "fastify-socket.io";
 import { Server } from "socket.io";
 import { COOKIE_NAME } from "./lib/constants";
-import type { DBChat, DBUser } from "./lib/types";
+import type { ChatHeader, DBChat, DBUser } from "./lib/types";
 import { authRoutes } from "./routes/auth";
 import { chatRoutes } from "./routes/chat";
 import { randomUUID } from "node:crypto";
@@ -147,46 +147,72 @@ fastify.ready((err) => {
 		console.log("Socket connected! ID:", socket.id, socket.handshake.auth);
 
 		// Listen for a custom event from the client
-		socket.on("start-chat", (data: { message: string; userId: string }) => {
-			const userIDA = socket.userId;
-			const userIDB = data.userId;
+		socket.on(
+			"start-chat",
+			(data: { message: string; userId: string; newChatID: string }) => {
+				const userIDA = socket.userId;
+				const userIDB = data.userId;
 
-			// Check that there isn't already a chat between the 2 users
-			const userA = dbUsers.find((dbUser) => dbUser.id === userIDA)!;
-			for (const chatID of userA.chatIDs) {
-				const chat = dbChats.find((dbChat) => dbChat.id === chatID)!;
-				if (chat.userIDA === userIDB || chat.userIDB === userIDB) {
-					return;
+				// Find both users
+				let userA: DBUser | undefined,
+					userB: DBUser | undefined = undefined;
+				for (const dbUser of dbUsers) {
+					if (dbUser.id === userIDA) {
+						userA = dbUser;
+						if (userB) break;
+					} else if (dbUser.id === userIDB) {
+						userB = dbUser;
+						if (userA) break;
+					}
 				}
-			}
+				if (!userA || !userB) return;
 
-			const newChatID = randomUUID();
+				// Check that there isn't already a chat between the 2 users
+				for (const chatID of userA.chatIDs) {
+					const chat = dbChats.find(
+						(dbChat) => dbChat.id === chatID,
+					)!;
+					if (chat.userIDA === userIDB || chat.userIDB === userIDB) {
+						return;
+					}
+				}
 
-			// Create new conversation
-			const newChat: DBChat = {
-				id: newChatID,
-				userIDA,
-				userIDB,
-				messages: [
-					{
-						text: data.message,
-						time: new Date().getTime(),
-					},
-				],
-			};
-			dbChats.push(newChat);
+				// Create new conversation
+				const newChatID = data.newChatID;
+				const newChat: DBChat = {
+					id: newChatID,
+					userIDA,
+					userIDB,
+					userHandleA: userA.handle,
+					userHandleB: userB.handle,
+					messages: [
+						{
+							text: data.message,
+							time: new Date().getTime(),
+						},
+					],
+				};
+				dbChats.push(newChat);
 
-			// Join userA
-			socket.join(newChatID);
+				// Join userA
+				socket.join(newChatID);
 
-			// Join userB if connected
-			for (const bSocket of fastify.io.sockets.sockets.values()) {
-				if (bSocket.userId === userIDB) bSocket.join(newChatID);
-			}
+				// Join userB if connected
+				for (const bSocket of fastify.io.sockets.sockets.values()) {
+					if (bSocket.userId === userIDB) bSocket.join(newChatID);
+				}
 
-			// Emit chat-started event to the room
-			socket.to(newChatID).emit("chat-started", { newChat });
-		});
+				// Emit chat-started event to the room
+				const newChatHeader: ChatHeader = {
+					id: newChat.id,
+					otherUserHandle: userA.handle,
+					isFirstUser: false,
+					numOfMessages: 1,
+					lastMessageHeader: data.message.slice(0, 10),
+				};
+				socket.to(newChatID).emit("chat-started", { newChatHeader });
+			},
+		);
 
 		socket.on("disconnect", () => {
 			console.log("Socket disconnected! ID:", socket.id, socket.userId);

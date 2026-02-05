@@ -8,6 +8,7 @@ import { Navbar } from "@/components/Navbar";
 import { Drawer } from "@/components/ui/drawer";
 import { fetchChats } from "@/chats";
 import { useAuth } from "@/auth";
+import { useQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_auth")({
 	beforeLoad: ({ context }) => {
@@ -17,16 +18,20 @@ export const Route = createFileRoute("/_auth")({
 			});
 		}
 	},
-	loader: async ({ context }) => ({
-		chats: await fetchChats(context.auth.user!.id),
-	}),
+	// loader: async ({ context }) => ({
+	// 	chats: await fetchChats(context.auth.user!.id),
+	// }),
 	component: AuthLayout,
 });
 
 function AuthLayout() {
 	const { user } = useAuth();
-	const data = Route.useLoaderData();
-	if (!data || !user) return <div>Something went wrong</div>;
+	const { data: chatHeaders, isLoading } = useQuery({
+		queryKey: ["chats"],
+		queryFn: async () => await fetchChats(),
+	});
+	// const data = Route.useLoaderData();
+	if (!chatHeaders || !user) return <div>Something went wrong</div>;
 	return (
 		<Drawer>
 			<div className="p-2">
@@ -35,30 +40,28 @@ function AuthLayout() {
 					<div className="hidden md:block md:col-span-1 p-4 border-2 h-full rounded-md">
 						<p className="mb-2">Your chats</p>
 						<ol className="grid gap-2">
-							{data.chats.map(
+							{chatHeaders.map(
 								({
-									userIdA,
-									userIdB,
-									handleA,
-									handleB,
-									messages,
-								}) => {
-									const chatId = `${userIdA}:${userIdB}`;
-									return (
-										<li key={chatId}>
-											<Link
-												to="/chats/$chatId"
-												params={{ chatId: chatId }}
-												className="text-blue-600 hover:opacity-75"
-												activeProps={{
-													className:
-														"font-bold underline",
-												}}>
-												{`${user.id === userIdA ? handleB : handleA}(${messages})`}
-											</Link>
-										</li>
-									);
-								},
+									id,
+									otherUserHandle,
+									lastMessageHeader,
+									numOfMessages,
+								}) => (
+									<li key={id}>
+										<Link
+											to={
+												`/chats/${id}` as "/chats/$chatId"
+											}
+											params={{ chatId: id }}
+											className="text-blue-600 hover:opacity-75"
+											activeProps={{
+												className:
+													"font-bold underline",
+											}}>
+											{`${otherUserHandle}(${numOfMessages}): ${lastMessageHeader}`}
+										</Link>
+									</li>
+								),
 							)}
 						</ol>
 					</div>

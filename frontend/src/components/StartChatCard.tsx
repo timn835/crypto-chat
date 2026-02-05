@@ -6,14 +6,27 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import type { User } from "@/lib/types";
+import type { ChatHeader, User } from "@/lib/types";
 import { useAuth } from "@/auth";
-import { useState, type FormEvent } from "react";
+import {
+	useState,
+	type Dispatch,
+	type FormEvent,
+	type SetStateAction,
+} from "react";
 import { Field } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
 
-export function StartChatCart({ user }: { user: User | null }) {
+export function StartChatCart({
+	user,
+	setChosenUser,
+}: {
+	user: User | null;
+	setChosenUser: Dispatch<SetStateAction<User | null>>;
+}) {
 	const { socket } = useAuth();
+	const queryClient = useQueryClient();
 	const [error, setError] = useState<string>("");
 	const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -36,11 +49,29 @@ export function StartChatCart({ user }: { user: User | null }) {
 
 			const message = messageField.toString().trim();
 
+			// Check length
 			if (message.length > 1000) {
 				setError("message");
 				return;
 			}
-			socket.emit("start-chat", { userId: user.id, message });
+
+			const newChatID = crypto.randomUUID();
+
+			// Emit event
+			socket.emit("start-chat", { userId: user.id, newChatID, message });
+
+			// Manually adjust query
+			queryClient.setQueryData(["chats"], (oldData: ChatHeader[]) => [
+				{
+					id: newChatID,
+					otherUserHandle: user.handle,
+					isFirstUser: true,
+					numOfMessages: 1,
+					lastMessageHeader: message.slice(0, 10),
+				},
+				...oldData,
+			]);
+			setChosenUser(null);
 		} catch (error) {
 			console.error(error);
 			setError("start-chat");
