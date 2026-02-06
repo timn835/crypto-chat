@@ -7,9 +7,10 @@ export type DBUser = {
 };
 
 export type Message = {
+	idx: number;
 	text: string;
-	time: number;
 	isUserA: boolean;
+	time: number;
 };
 
 export type DBChat = {

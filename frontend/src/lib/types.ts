@@ -15,5 +15,13 @@ export type Message = {
 	idx: number;
 	text: string;
 	isUserA: boolean;
-	// In the db, there will be a chat id
+	time: number;
+};
+
+export type Chat = {
+	userIDA: string;
+	userIDB: string;
+	userHandleA: string;
+	userHandleB: string;
+	messages: Message[];
 };

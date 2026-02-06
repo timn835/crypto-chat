@@ -59,18 +59,31 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 				({ userIDA, userIDB }) =>
 					userIDA === userID || userIDB === userID,
 			)
-			.map(({ id, messages, userIDA, userHandleA, userHandleB }) => ({
-				id,
-				otherUserHandle: userIDA === userID ? userHandleB : userHandleA,
-				numOfMessages: messages.length,
-				isFirstUser: userIDA === userID,
-				lastMessageHeader:
-					messages[messages.length - 1]!.text.slice(0, 10) +
-					(messages[messages.length - 1]!.text.length > 10
-						? "..."
-						: ""),
-				lastMessageTime: messages[messages.length - 1]!.time,
-			}));
+			.map(
+				({
+					id,
+					messages,
+					userIDA,
+					userIDB,
+					userHandleA,
+					userHandleB,
+				}) => ({
+					id,
+					otherUserHandle:
+						userIDA === userID ? userHandleB : userHandleA,
+					numOfMessages: messages.length,
+					lastMessageHeader:
+						messages[messages.length - 1]!.text.slice(0, 10) +
+						(messages[messages.length - 1]!.text.length > 10
+							? "..."
+							: ""),
+					lastMessageTime: messages[messages.length - 1]!.time,
+					isAuthorOfLastMessage: messages[messages.length - 1]!
+						.isUserA
+						? userIDA === userID
+						: userIDB === userID,
+				}),
+			);
 		reply.send({
 			chatHeaders,
 		});

@@ -35,7 +35,7 @@ function AuthLayout() {
 		<Drawer>
 			<div className="p-2">
 				<Navbar />
-				<div className="min-h-screen grid md:grid-cols-10 gap-2">
+				<div className="grid md:grid-cols-10 gap-2">
 					<div className="hidden md:block md:col-span-2 p-4 border-2 h-full rounded-md">
 						<p className="mb-4 text-center">Your chats</p>
 						<ol className="grid gap-4">
@@ -67,7 +67,7 @@ function AuthLayout() {
 							)}
 						</ol>
 					</div>
-					<div className="md:col-span-8 p-4 border-2 h-full rounded-md">
+					<div className="h-170 md:col-span-8 p-4 border-2 rounded-md">
 						<Outlet />
 					</div>
 				</div>
