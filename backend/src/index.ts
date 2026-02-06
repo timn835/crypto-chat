@@ -149,7 +149,12 @@ fastify.ready((err) => {
 		// Listen for a custom event from the client
 		socket.on(
 			"start-chat",
-			(data: { message: string; userId: string; newChatID: string }) => {
+			(data: {
+				message: string;
+				userId: string;
+				newChatID: string;
+				messageDate: number;
+			}) => {
 				const userIDA = socket.userId;
 				const userIDB = data.userId;
 
@@ -188,7 +193,7 @@ fastify.ready((err) => {
 					messages: [
 						{
 							text: data.message,
-							time: new Date().getTime(),
+							time: data.messageDate,
 						},
 					],
 				};
@@ -212,7 +217,10 @@ fastify.ready((err) => {
 					otherUserHandle: userA.handle,
 					isFirstUser: false,
 					numOfMessages: 1,
-					lastMessageHeader: data.message.slice(0, 10),
+					lastMessageHeader:
+						data.message.slice(0, 10) +
+						(data.message.length > 10 ? "..." : ""),
+					lastMessageTime: newChat.messages[0]!.time,
 				};
 				socket.to(newChatID).emit("chat-started", { newChatHeader });
 			},

@@ -26,4 +26,5 @@ export type ChatHeader = {
 	isFirstUser: boolean;
 	numOfMessages: number;
 	lastMessageHeader: string;
+	lastMessageTime: number;
 };

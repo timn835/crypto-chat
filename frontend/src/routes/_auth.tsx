@@ -1,16 +1,15 @@
+import { useAuth } from "@/auth";
+import { fetchChats } from "@/chats";
+import { Navbar } from "@/components/Navbar";
+import { Drawer } from "@/components/ui/drawer";
+import { formatterUS } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
 	Outlet,
 	redirect,
 } from "@tanstack/react-router";
-import { Navbar } from "@/components/Navbar";
-import { Drawer } from "@/components/ui/drawer";
-import { fetchChats } from "@/chats";
-import { useAuth } from "@/auth";
-import { useQuery } from "@tanstack/react-query";
-import { formatterUS } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_auth")({
 	beforeLoad: ({ context }) => {
@@ -36,10 +35,10 @@ function AuthLayout() {
 		<Drawer>
 			<div className="p-2">
 				<Navbar />
-				<div className="min-h-screen grid md:grid-cols-8 gap-2">
+				<div className="min-h-screen grid md:grid-cols-10 gap-2">
 					<div className="hidden md:block md:col-span-2 p-4 border-2 h-full rounded-md">
-						<p className="mb-2 text-center">Your chats</p>
-						<ol className="grid gap-2">
+						<p className="mb-4 text-center">Your chats</p>
+						<ol className="grid gap-4">
 							{chatHeaders.map(
 								({
 									id,
@@ -53,7 +52,7 @@ function AuthLayout() {
 										<Link
 											to="/chats/$chatId"
 											params={{ chatId: id }}
-											className="hover:opacity-75 text-center">
+											className="text-center hover:text-blue-400 transition-colors">
 											<p className="font-semibold text-xl">
 												{otherUserHandle}
 											</p>
@@ -70,7 +69,7 @@ function AuthLayout() {
 							)}
 						</ol>
 					</div>
-					<div className="md:col-span-6 p-4 border-2 h-full rounded-md">
+					<div className="md:col-span-8 p-4 border-2 h-full rounded-md">
 						<Outlet />
 					</div>
 				</div>

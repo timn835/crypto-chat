@@ -65,8 +65,11 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 				numOfMessages: messages.length,
 				isFirstUser: userIDA === userID,
 				lastMessageHeader:
-					messages[messages.length - 1]?.text?.slice(0, 10) || "",
-				lastMessageTime: messages[messages.length - 1]?.time,
+					messages[messages.length - 1]!.text.slice(0, 10) +
+					(messages[messages.length - 1]!.text.length > 10
+						? "..."
+						: ""),
+				lastMessageTime: messages[messages.length - 1]!.time,
 			}));
 		reply.send({
 			chatHeaders,

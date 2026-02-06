@@ -66,12 +66,14 @@ export function StartChatCart({
 			}
 
 			const newChatID = crypto.randomUUID();
+			const messageDate = new Date().getTime();
 
 			// Emit event
 			socket.emit("start-chat", {
 				userId: chosenUser.id,
 				newChatID,
 				message,
+				messageDate,
 			});
 
 			// Manually adjust query
@@ -81,7 +83,10 @@ export function StartChatCart({
 					otherUserHandle: chosenUser.handle,
 					isFirstUser: true,
 					numOfMessages: 1,
-					lastMessageHeader: message.slice(0, 10),
+					lastMessageHeader:
+						message.slice(0, 10) +
+						(message.length > 10 ? "..." : ""),
+					lastMessageTime: messageDate,
 				},
 				...oldData,
 			]);
