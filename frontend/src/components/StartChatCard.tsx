@@ -19,11 +19,21 @@ import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function StartChatCart({
-	user,
+	chosenUser,
 	setChosenUser,
+	setFoundUsers,
 }: {
-	user: User | null;
+	chosenUser: User | null;
 	setChosenUser: Dispatch<SetStateAction<User | null>>;
+	setFoundUsers: Dispatch<
+		SetStateAction<
+			| (User & {
+					connected: boolean;
+					existingChatID: string | undefined;
+			  })[]
+			| null
+		>
+	>;
 }) {
 	const { socket } = useAuth();
 	const queryClient = useQueryClient();
@@ -35,7 +45,7 @@ export function StartChatCart({
 		setError("");
 		try {
 			evt.preventDefault();
-			if (!socket || !user) return;
+			if (!socket || !chosenUser) return;
 
 			// Get fields
 			const data = new FormData(evt.currentTarget);
@@ -58,19 +68,35 @@ export function StartChatCart({
 			const newChatID = crypto.randomUUID();
 
 			// Emit event
-			socket.emit("start-chat", { userId: user.id, newChatID, message });
+			socket.emit("start-chat", {
+				userId: chosenUser.id,
+				newChatID,
+				message,
+			});
 
 			// Manually adjust query
 			queryClient.setQueryData(["chats"], (oldData: ChatHeader[]) => [
 				{
 					id: newChatID,
-					otherUserHandle: user.handle,
+					otherUserHandle: chosenUser.handle,
 					isFirstUser: true,
 					numOfMessages: 1,
 					lastMessageHeader: message.slice(0, 10),
 				},
 				...oldData,
 			]);
+
+			// Adjust previously found users to be unable to start a chat with the same user again
+			setFoundUsers((prevFoundUsers) => {
+				if (!prevFoundUsers) return [];
+				return prevFoundUsers.map((prevFoundUser) =>
+					prevFoundUser.id === chosenUser.id
+						? { ...prevFoundUser, existingChatID: newChatID }
+						: prevFoundUser,
+				);
+			});
+
+			// Close dialog by setting chosen user to null
 			setChosenUser(null);
 		} catch (error) {
 			console.error(error);
@@ -80,13 +106,14 @@ export function StartChatCart({
 		}
 	};
 
-	if (!user) return null;
+	if (!chosenUser) return null;
+
 	return (
 		<DialogContent>
 			<DialogHeader>
 				<DialogTitle>
 					Start a chat with{" "}
-					<span className="font-semibold">{user.handle}</span>
+					<span className="font-semibold">{chosenUser.handle}</span>
 				</DialogTitle>
 				<DialogDescription className="sr-only">
 					Enter the message below and press send to start a chat

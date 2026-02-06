@@ -8,11 +8,33 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 		"/auth/search",
 		(request, reply) => {
 			const handle = request.query.handle;
-			const users: { id: string; handle: string; connected: boolean }[] =
-				[];
+			const users: {
+				id: string;
+				handle: string;
+				connected: boolean;
+				existingChatID: string | undefined;
+			}[] = [];
 			const connectedUsers = new Set<string>();
 			for (const socket of fastify.io.sockets.sockets.values())
 				connectedUsers.add(socket.userId);
+
+			let userToChatIDMap: Record<string, string> = {};
+			for (const user of dbUsers) {
+				if (user.id === request.user) {
+					for (const chatID of user.chatIDs) {
+						const chat = dbChats.find(
+							(dbChat) => dbChat.id === chatID,
+						);
+						if (!chat) continue;
+						userToChatIDMap[
+							chat.userIDA === request.user
+								? chat.userIDB
+								: chat.userIDA
+						] = chat.id;
+					}
+					break;
+				}
+			}
 
 			if (handle.length <= 20) {
 				for (const user of dbUsers) {
@@ -22,6 +44,7 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 							id: user.id,
 							handle: user.handle,
 							connected: connectedUsers.has(user.id),
+							existingChatID: userToChatIDMap[user.id],
 						});
 				}
 			}
@@ -43,6 +66,7 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 				isFirstUser: userIDA === userID,
 				lastMessageHeader:
 					messages[messages.length - 1]?.text?.slice(0, 10) || "",
+				lastMessageTime: messages[messages.length - 1]?.time,
 			}));
 		reply.send({
 			chatHeaders,

@@ -20,6 +20,17 @@ export function bytesToBase64(bytes: Uint8Array): string {
 	return btoa(binary);
 }
 
+export const formatterUS = new Intl.DateTimeFormat("en-US", {
+	year: "numeric",
+	month: "long",
+	day: "numeric",
+	hour: "numeric",
+	minute: "numeric",
+	second: "numeric",
+});
+
+/** CRYPTOGRAPHY STUFF */
+
 export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
 	const binary = atob(base64);
 	const bytes = new Uint8Array(binary.length);

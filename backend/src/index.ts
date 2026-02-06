@@ -177,7 +177,7 @@ fastify.ready((err) => {
 					}
 				}
 
-				// Create new conversation
+				// Create new chat
 				const newChatID = data.newChatID;
 				const newChat: DBChat = {
 					id: newChatID,
@@ -193,6 +193,10 @@ fastify.ready((err) => {
 					],
 				};
 				dbChats.push(newChat);
+
+				// Update user chats
+				userA.chatIDs.push(newChatID);
+				userB.chatIDs.push(newChatID);
 
 				// Join userA
 				socket.join(newChatID);
