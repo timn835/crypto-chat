@@ -77,19 +77,21 @@ export function StartChatCart({
 			});
 
 			// Manually adjust query
-			queryClient.setQueryData(["chats"], (oldData: ChatHeader[]) => [
-				{
-					id: newChatID,
-					otherUserHandle: chosenUser.handle,
-					isFirstUser: true,
-					numOfMessages: 1,
-					lastMessageHeader:
-						message.slice(0, 10) +
-						(message.length > 10 ? "..." : ""),
-					lastMessageTime: messageDate,
-				},
-				...oldData,
-			]);
+			queryClient.setQueryData(
+				["chats"],
+				(oldData: ChatHeader[]): ChatHeader[] => [
+					{
+						id: newChatID,
+						otherUserHandle: chosenUser.handle,
+						lastMessageHeader:
+							message.slice(0, 10) +
+							(message.length > 10 ? "..." : ""),
+						lastMessageTime: messageDate,
+						isAuthorOfLastMessage: true,
+					},
+					...oldData,
+				],
+			);
 
 			// Adjust previously found users to be unable to start a chat with the same user again
 			setFoundUsers((prevFoundUsers) => {

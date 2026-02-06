@@ -6,14 +6,14 @@ export type User = {
 export type ChatHeader = {
 	id: string;
 	otherUserHandle: string;
-	isFirstUser: boolean;
-	numOfMessages: number;
 	lastMessageHeader: string;
 	lastMessageTime: number;
+	isAuthorOfLastMessage: boolean;
 };
 
 export type Message = {
 	idx: number;
 	text: string;
+	isUserA: boolean;
 	// In the db, there will be a chat id
 };

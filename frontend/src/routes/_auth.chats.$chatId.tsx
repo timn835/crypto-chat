@@ -8,7 +8,6 @@ export const Route = createFileRoute("/_auth/chats/$chatId")({
 });
 
 function ChatPage() {
-	// Green for your message, blue for other persons message
 	const { socket } = useAuth();
 
 	const sendMessage = () => {

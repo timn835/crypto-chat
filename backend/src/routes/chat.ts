@@ -75,4 +75,25 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 			chatHeaders,
 		});
 	});
+
+	fastify.get<{ Params: { id: string } }>(
+		"/auth/chat/:id",
+		(request, reply) => {
+			const chatID = request.params.id;
+			const userID = request.user;
+
+			// Get the chat
+			const chat = dbChats.find(({ id }) => id === chatID);
+			if (!chat)
+				return reply.status(404).send({ message: "Chat not found" });
+
+			// Check if the user is part of the chat
+			if (chat.userIDA !== userID && chat.userIDB !== userID)
+				return reply
+					.status(401)
+					.send({ message: "User is not authorized in this chat" });
+
+			reply.send({ chat });
+		},
+	);
 };

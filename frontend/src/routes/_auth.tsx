@@ -44,9 +44,8 @@ function AuthLayout() {
 									id,
 									otherUserHandle,
 									lastMessageHeader,
-									numOfMessages,
 									lastMessageTime,
-									isFirstUser,
+									isAuthorOfLastMessage,
 								}) => (
 									<li key={id}>
 										<Link
@@ -58,8 +57,7 @@ function AuthLayout() {
 											</p>
 											<p className="text-xs">{`${formatterUS.format(new Date(lastMessageTime))}`}</p>
 											<p className="text-xs">{`${
-												numOfMessages % 2 === 1 &&
-												isFirstUser
+												isAuthorOfLastMessage
 													? "You"
 													: otherUserHandle
 											}: ${lastMessageHeader}`}</p>

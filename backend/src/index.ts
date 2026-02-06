@@ -9,7 +9,6 @@ import { COOKIE_NAME } from "./lib/constants";
 import type { ChatHeader, DBChat, DBUser } from "./lib/types";
 import { authRoutes } from "./routes/auth";
 import { chatRoutes } from "./routes/chat";
-import { randomUUID } from "node:crypto";
 
 dotenv.config();
 
@@ -194,6 +193,7 @@ fastify.ready((err) => {
 						{
 							text: data.message,
 							time: data.messageDate,
+							isUserA: true,
 						},
 					],
 				};
@@ -215,12 +215,11 @@ fastify.ready((err) => {
 				const newChatHeader: ChatHeader = {
 					id: newChat.id,
 					otherUserHandle: userA.handle,
-					isFirstUser: false,
-					numOfMessages: 1,
 					lastMessageHeader:
 						data.message.slice(0, 10) +
 						(data.message.length > 10 ? "..." : ""),
 					lastMessageTime: newChat.messages[0]!.time,
+					isAuthorOfLastMessage: false,
 				};
 				socket.to(newChatID).emit("chat-started", { newChatHeader });
 			},
