@@ -1,9 +1,10 @@
 import { useAuth } from "@/auth";
 import { fetchChat } from "@/chats";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Chat, ChatHeader, Message } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, formatterUS } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { SendIcon } from "lucide-react";
@@ -98,19 +99,34 @@ function ChatPage() {
 				<div className="w-1/2">{otherUserHandle}</div>
 				<div className="w-1/2">{user.handle}</div>
 			</div>
-			<div className="h-140">
-				{chat.messages.map(({ isUserA, text }, i) => {
+			<div className="h-140 overflow-scroll px-2">
+				{chat.messages.map(({ isUserA, text, time }, i) => {
 					const isMyMessage = isUserA
 						? user.id === chat.userIDA
 						: user.id === chat.userIDB;
 					return (
 						<div
 							key={`message-${i}`}
-							className={cn("w-full flex", {
-								"text-blue-500 justify-end": isMyMessage,
-								"text-green-500 justify-start": !isMyMessage,
+							className={cn("w-full flex p-1", {
+								"justify-end": isMyMessage,
+								"justify-start": !isMyMessage,
 							})}>
-							<div className="w-1/2">{text}</div>
+							<Card
+								className={cn("w-1/2 p-2", {
+									"bg-blue-100": isMyMessage,
+									"bg-green-100": !isMyMessage,
+								})}>
+								<CardContent>
+									<p>{text}</p>
+								</CardContent>
+								<CardFooter
+									className={cn("border-t-2", {
+										"border-blue-500": isMyMessage,
+										"border-green-500": !isMyMessage,
+									})}>
+									<p className="w-full text-end">{`${formatterUS.format(new Date(time))}`}</p>
+								</CardFooter>
+							</Card>
 						</div>
 					);
 				})}
