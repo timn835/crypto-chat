@@ -3,16 +3,7 @@ export type User = {
 	handle: string;
 };
 
-export type ChatHeader = {
-	id: string;
-	otherUserHandle: string;
-	lastMessageHeader: string;
-	lastMessageTime: number;
-	isAuthorOfLastMessage: boolean;
-};
-
 export type Message = {
-	idx: number;
 	text: string;
 	isUserA: boolean;
 	time: number;
@@ -24,4 +15,13 @@ export type Chat = {
 	userHandleA: string;
 	userHandleB: string;
 	messages: Message[];
+};
+
+export type ChatHeader = {
+	id: string;
+	otherUserHandle: string;
+	isOtherUserConnected: boolean;
+	lastMessageHeader: string;
+	lastMessageTime: number;
+	isAuthorOfLastMessage: boolean;
 };

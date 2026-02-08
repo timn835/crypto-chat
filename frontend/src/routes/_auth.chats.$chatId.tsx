@@ -45,22 +45,14 @@ function ChatPage() {
 			return;
 		}
 
-		// Emit new message
+		// Update frontend chat headers
 		const newMessage: Message = {
-			idx: chat.messages.length,
 			text: message,
 			isUserA: user.id === chat.userIDA,
 			time: new Date().getTime(),
 		};
-
 		const lastMessageHeader =
 			message.slice(0, 10) + (message.length > 10 ? "..." : "");
-		socket.emit("new-message", {
-			chatId,
-			newMessage,
-		});
-
-		// Update frontend chat headers
 		queryClient.setQueryData(
 			["chats"],
 			(oldData: ChatHeader[]): ChatHeader[] =>
@@ -83,6 +75,15 @@ function ChatPage() {
 				messages: [...oldData.messages, newMessage],
 			}),
 		);
+
+		// Emit new message
+		socket.emit("new-message", {
+			chatId,
+			newMessage,
+		});
+
+		// Clear the input
+		evt.currentTarget.reset();
 	};
 
 	if (isLoading) return <div>...Loading...</div>;
@@ -98,13 +99,13 @@ function ChatPage() {
 				<div className="w-1/2">{user.handle}</div>
 			</div>
 			<div className="h-140">
-				{chat.messages.map(({ idx, isUserA, text }) => {
+				{chat.messages.map(({ isUserA, text }, i) => {
 					const isMyMessage = isUserA
 						? user.id === chat.userIDA
 						: user.id === chat.userIDB;
 					return (
 						<div
-							key={`message-${idx}`}
+							key={`message-${i}`}
 							className={cn("w-full flex", {
 								"text-blue-500 justify-end": isMyMessage,
 								"text-green-500 justify-start": !isMyMessage,

@@ -2,7 +2,7 @@ import { useAuth } from "@/auth";
 import { fetchChats } from "@/chats";
 import { Navbar } from "@/components/Navbar";
 import { Drawer } from "@/components/ui/drawer";
-import { formatterUS } from "@/lib/utils";
+import { cn, formatterUS } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
 	createFileRoute,
@@ -10,6 +10,7 @@ import {
 	Outlet,
 	redirect,
 } from "@tanstack/react-router";
+import { DotIcon } from "lucide-react";
 
 export const Route = createFileRoute("/_auth")({
 	beforeLoad: ({ context }) => {
@@ -43,6 +44,7 @@ function AuthLayout() {
 								({
 									id,
 									otherUserHandle,
+									isOtherUserConnected,
 									lastMessageHeader,
 									lastMessageTime,
 									isAuthorOfLastMessage,
@@ -52,13 +54,21 @@ function AuthLayout() {
 											to="/chats/$chatId"
 											params={{ chatId: id }}
 											className="text-center hover:text-blue-400 transition-colors">
-											<p className="font-semibold text-xl">
+											<p className="font-semibold text-xl flex justify-center items-center">
+												<DotIcon
+													className={cn("h-10 w-10", {
+														"text-green-500":
+															isOtherUserConnected,
+														"text-red-500":
+															!isOtherUserConnected,
+													})}
+												/>
 												{otherUserHandle}
 											</p>
 											<p className="text-xs">{`${formatterUS.format(new Date(lastMessageTime))}`}</p>
 											<p className="text-xs">{`${
 												isAuthorOfLastMessage
-													? "You"
+													? "you"
 													: otherUserHandle
 											}: ${lastMessageHeader}`}</p>
 										</Link>

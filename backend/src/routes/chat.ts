@@ -54,6 +54,10 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 
 	fastify.get("/auth/chats", (request, reply) => {
 		const userID = request.user;
+		const connectedUsers = new Set<string>();
+		for (const socket of fastify.io.sockets.sockets.values())
+			connectedUsers.add(socket.userId);
+
 		const chatHeaders: ChatHeader[] = dbChats
 			.filter(
 				({ userIDA, userIDB }) =>
@@ -82,6 +86,9 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 						.isUserA
 						? userIDA === userID
 						: userIDB === userID,
+					isOtherUserConnected: connectedUsers.has(
+						userIDA === userID ? userIDB : userIDA,
+					),
 				}),
 			);
 		reply.send({

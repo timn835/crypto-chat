@@ -6,7 +6,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import fastifySocketIO from "fastify-socket.io";
 import { Server } from "socket.io";
 import { COOKIE_NAME } from "./lib/constants";
-import type { ChatHeader, DBChat, DBUser } from "./lib/types";
+import type { ChatHeader, DBChat, DBUser, Message } from "./lib/types";
 import { authRoutes } from "./routes/auth";
 import { chatRoutes } from "./routes/chat";
 
@@ -143,9 +143,22 @@ fastify.ready((err) => {
 
 	// Access the decorated 'io' instance
 	fastify.io.on("connection", (socket) => {
-		console.log("Socket connected! ID:", socket.id, socket.handshake.auth);
+		console.log(
+			`Socket connected! socket ID: ${socket.id}, user ID: ${socket.userId}`,
+		);
 
-		// Listen for a custom event from the client
+		// Join all user rooms & emit that socket has connected
+		for (const dbUser of dbUsers) {
+			if (dbUser.id === socket.userId) {
+				for (const chatId of dbUser.chatIDs) {
+					socket.join(chatId);
+					socket.to(chatId).emit("user-connected", { chatId });
+				}
+				break;
+			}
+		}
+
+		// Listen for start-chat event
 		socket.on(
 			"start-chat",
 			(data: {
@@ -206,27 +219,97 @@ fastify.ready((err) => {
 				// Join userA
 				socket.join(newChatID);
 
-				// Join userB if connected
-				for (const bSocket of fastify.io.sockets.sockets.values()) {
-					if (bSocket.userId === userIDB) bSocket.join(newChatID);
-				}
-
-				// Emit chat-started event to the room
 				const newChatHeader: ChatHeader = {
 					id: newChat.id,
 					otherUserHandle: userA.handle,
+					isOtherUserConnected: true,
 					lastMessageHeader:
 						data.message.slice(0, 10) +
 						(data.message.length > 10 ? "..." : ""),
 					lastMessageTime: newChat.messages[0]!.time,
 					isAuthorOfLastMessage: false,
 				};
+
+				// Join userB if connected
+				let isUserBConnected = false;
+				for (const bSocket of fastify.io.sockets.sockets.values()) {
+					if (bSocket.userId === userIDB) {
+						if (!isUserBConnected) isUserBConnected = true;
+						bSocket.join(newChatID);
+					}
+				}
+
+				// Emit chat-started event to the recipient
 				socket.to(newChatID).emit("chat-started", { newChatHeader });
+
+				// Emit chat-started event to the originator
+				newChatHeader.otherUserHandle = userB.handle;
+				newChatHeader.isOtherUserConnected = isUserBConnected;
+				newChatHeader.isAuthorOfLastMessage = true;
+				socket.emit("chat-started", { newChatHeader });
+			},
+		);
+
+		// Listen for new-message event
+		socket.on(
+			"new-message",
+			(data: { chatId: string; newMessage: Message }) => {
+				for (let i = 0; i < dbChats.length; i++) {
+					if (dbChats[i]!.id !== data.chatId) continue;
+
+					// Add message to chat
+					dbChats[i]!.messages.push(data.newMessage);
+
+					// Adjust for potential concurrency
+					let idx = dbChats[i]!.messages.length - 1;
+					while (
+						idx > 0 &&
+						dbChats[i]!.messages[idx]!.time <
+							dbChats[i]!.messages[idx - 1]!.time
+					) {
+						[
+							dbChats[i]!.messages[idx],
+							dbChats[i]!.messages[idx - 1],
+						] = [
+							dbChats[i]!.messages[idx - 1]!,
+							dbChats[i]!.messages[idx]!,
+						];
+						idx--;
+					}
+				}
+
+				// Emit the event
+				socket.to(data.chatId).emit("new-message", data);
 			},
 		);
 
 		socket.on("disconnect", () => {
-			console.log("Socket disconnected! ID:", socket.id, socket.userId);
+			// Log disconnection
+			console.log(
+				`Socket disconnected! socket ID: ${socket.id}, user ID: ${socket.userId}`,
+			);
+
+			// If the user has no more sockets, emit disconnection to all rooms user is connected to
+			let stillConnected = false;
+			for (const potentialSocket of fastify.io.sockets.sockets.values()) {
+				if (potentialSocket.id === socket.id) continue;
+				if (potentialSocket.userId === socket.userId) {
+					stillConnected = true;
+					break;
+				}
+			}
+			if (!stillConnected) {
+				for (const dbUser of dbUsers) {
+					if (dbUser.id === socket.userId) {
+						for (const chatId of dbUser.chatIDs) {
+							socket
+								.to(chatId)
+								.emit("user-disconnected", { chatId });
+						}
+						break;
+					}
+				}
+			}
 		});
 	});
 });

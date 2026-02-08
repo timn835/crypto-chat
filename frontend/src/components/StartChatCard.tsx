@@ -1,22 +1,21 @@
+import { useAuth } from "@/auth";
+import { Button } from "@/components/ui/button";
 import {
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import type { ChatHeader, User } from "@/lib/types";
-import { useAuth } from "@/auth";
+import type { User } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import {
 	useState,
 	type Dispatch,
 	type FormEvent,
 	type SetStateAction,
 } from "react";
-import { Field } from "@/components/ui/field";
-import { cn } from "@/lib/utils";
-import { useQueryClient } from "@tanstack/react-query";
 
 export function StartChatCart({
 	chosenUser,
@@ -36,7 +35,6 @@ export function StartChatCart({
 	>;
 }) {
 	const { socket } = useAuth();
-	const queryClient = useQueryClient();
 	const [error, setError] = useState<string>("");
 	const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -75,23 +73,6 @@ export function StartChatCart({
 				message,
 				messageDate,
 			});
-
-			// Manually adjust query
-			queryClient.setQueryData(
-				["chats"],
-				(oldData: ChatHeader[]): ChatHeader[] => [
-					{
-						id: newChatID,
-						otherUserHandle: chosenUser.handle,
-						lastMessageHeader:
-							message.slice(0, 10) +
-							(message.length > 10 ? "..." : ""),
-						lastMessageTime: messageDate,
-						isAuthorOfLastMessage: true,
-					},
-					...oldData,
-				],
-			);
 
 			// Adjust previously found users to be unable to start a chat with the same user again
 			setFoundUsers((prevFoundUsers) => {

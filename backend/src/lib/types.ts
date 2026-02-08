@@ -7,7 +7,6 @@ export type DBUser = {
 };
 
 export type Message = {
-	idx: number;
 	text: string;
 	isUserA: boolean;
 	time: number;
@@ -25,6 +24,7 @@ export type DBChat = {
 export type ChatHeader = {
 	id: string;
 	otherUserHandle: string;
+	isOtherUserConnected: boolean;
 	lastMessageHeader: string;
 	lastMessageTime: number;
 	isAuthorOfLastMessage: boolean;

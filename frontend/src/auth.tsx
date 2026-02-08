@@ -6,7 +6,7 @@ import {
 	useState,
 } from "react";
 import { io, type Socket } from "socket.io-client";
-import type { ChatHeader, User } from "./lib/types";
+import type { Chat, ChatHeader, Message, User } from "./lib/types";
 import { bytesToBase64 } from "./lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -118,6 +118,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 	// This useEffect will listen to whenever we receive messages/notifications/events from the socket
 	useEffect(() => {
+		// Listen to user connexions to update the chatHeaders connected state
+		socket?.on("user-connected", ({ chatId }: { chatId: string }) => {
+			console.log("ATTENTION: a user has connected");
+			// Update frontend chat headers
+			queryClient.setQueryData(
+				["chats"],
+				(oldData: ChatHeader[]): ChatHeader[] =>
+					oldData.map((chatHeader) => {
+						if (chatHeader.id !== chatId) return chatHeader;
+						return {
+							...chatHeader,
+							isOtherUserConnected: true,
+						};
+					}),
+			);
+		});
+
+		// Listen for chat-started event, this will also update the headers for the one who actually started the chat
 		socket?.on(
 			"chat-started",
 			({ newChatHeader }: { newChatHeader: ChatHeader }) => {
@@ -127,6 +145,80 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 				]);
 			},
 		);
+
+		// Listen for new-message event, it will only be emitted to the receiver (unlike the chat-started event)
+		socket?.on(
+			"new-message",
+			({
+				chatId,
+				newMessage,
+			}: {
+				chatId: string;
+				newMessage: Message;
+			}) => {
+				// Update frontend chat headers
+				const lastMessageHeader =
+					newMessage.text.slice(0, 10) +
+					(newMessage.text.length > 10 ? "..." : "");
+				queryClient.setQueryData(
+					["chats"],
+					(oldData: ChatHeader[]): ChatHeader[] =>
+						oldData.map((chatHeader) => {
+							if (
+								chatHeader.id !== chatId ||
+								chatHeader.lastMessageTime > newMessage.time
+							)
+								return chatHeader;
+							return {
+								...chatHeader,
+								lastMessageHeader,
+								lastMessageTime: newMessage.time,
+								isAuthorOfLastMessage: false,
+							};
+						}),
+				);
+
+				// Update frontend chat
+				queryClient.setQueryData(
+					["chat", chatId],
+					(oldData: Chat): Chat => {
+						const newMessages = [...oldData.messages, newMessage];
+						// Adjust for potential concurrency
+						let idx = newMessages.length - 1;
+						while (
+							idx > 0 &&
+							newMessages[idx].time < newMessages[idx - 1]!.time
+						) {
+							[newMessages[idx], newMessages[idx - 1]] = [
+								newMessages[idx - 1]!,
+								newMessages[idx]!,
+							];
+							idx--;
+						}
+						return {
+							...oldData,
+							messages: newMessages,
+						};
+					},
+				);
+			},
+		);
+
+		// Listen to user disconnexions to update the chatHeaders connected state
+		socket?.on("user-disconnected", ({ chatId }: { chatId: string }) => {
+			// Update frontend chat headers
+			queryClient.setQueryData(
+				["chats"],
+				(oldData: ChatHeader[]): ChatHeader[] =>
+					oldData.map((chatHeader) => {
+						if (chatHeader.id !== chatId) return chatHeader;
+						return {
+							...chatHeader,
+							isOtherUserConnected: false,
+						};
+					}),
+			);
+		});
 	}, [socket]);
 
 	return (
