@@ -1,5 +1,5 @@
 import { useAuth } from "@/auth";
-import { fetchChat } from "@/chats";
+import { fetchChat, fetchChats } from "@/chats";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { cn, formatterUS } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { SendIcon } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 export const Route = createFileRoute("/_auth/chats/$chatId")({
 	component: ChatPage,
@@ -18,11 +18,17 @@ function ChatPage() {
 	const { socket, user } = useAuth();
 	const { chatId } = Route.useParams();
 	const [error, setError] = useState<string>("");
+	const containerRef = useRef<HTMLDivElement>(null);
 	const queryClient = useQueryClient();
 
-	const { data: chat, isLoading } = useQuery({
+	const { data: chat, isLoading: isChatLoading } = useQuery({
 		queryKey: ["chat", chatId],
 		queryFn: async () => await fetchChat(chatId),
+	});
+
+	const { data: chatHeaders, isLoading: areChatHeadersLoading } = useQuery({
+		queryKey: ["chats"],
+		queryFn: async () => await fetchChats(),
 	});
 
 	const onFormSubmit = (evt: FormEvent<HTMLFormElement>) => {
@@ -56,16 +62,29 @@ function ChatPage() {
 			message.slice(0, 10) + (message.length > 10 ? "..." : "");
 		queryClient.setQueryData(
 			["chats"],
-			(oldData: ChatHeader[]): ChatHeader[] =>
-				oldData.map((chatHeader) => {
-					if (chatHeader.id !== chatId) return chatHeader;
-					return {
-						...chatHeader,
+			(oldData: ChatHeader[]): ChatHeader[] => {
+				const newData: ChatHeader[] = [
+					{
+						id: chatId,
+						otherUserHandle: "",
+						isOtherUserConnected: false,
 						lastMessageHeader,
 						lastMessageTime: newMessage.time,
 						isAuthorOfLastMessage: true,
-					};
-				}),
+					},
+				];
+
+				for (const chatHeader of oldData) {
+					if (chatHeader.id !== chatId) {
+						newData.push(chatHeader);
+						continue;
+					}
+					newData[0].otherUserHandle = chatHeader.otherUserHandle;
+					newData[0].isOtherUserConnected =
+						chatHeader.isOtherUserConnected;
+				}
+				return newData;
+			},
 		);
 
 		// Update frontend chat
@@ -87,19 +106,37 @@ function ChatPage() {
 		evt.currentTarget.reset();
 	};
 
-	if (isLoading) return <div>...Loading...</div>;
+	// useEffect for automatic scroll
+	useEffect(() => {
+		if (!chat) return;
+		containerRef.current?.scrollTo({
+			top: containerRef.current.scrollHeight,
+			behavior: "smooth",
+		});
+	}, [chat]);
+
+	if (isChatLoading || areChatHeadersLoading) return <div>...Loading...</div>;
 	if (!chat || !user) return <div>Something went wrong</div>;
 
 	const otherUserHandle =
 		user.id === chat.userIDA ? chat.userHandleB : chat.userHandleA;
 
+	const otherUserConnected = !!chatHeaders?.find(
+		(chatHeader) => chatHeader.id === chatId,
+	)?.isOtherUserConnected;
+
 	return (
 		<div className="grid gap-2">
-			<div className="w-full flex">
-				<div className="w-1/2">{otherUserHandle}</div>
+			<div className="w-full flex text-2xl font-semibold">
+				<div
+					className={cn("w-1/2", {
+						"text-green-500": otherUserConnected,
+					})}>
+					{`${otherUserHandle} - ${otherUserConnected ? "online" : "offline"}`}
+				</div>
 				<div className="w-1/2">{user.handle}</div>
 			</div>
-			<div className="h-140 overflow-scroll px-2">
+			<div ref={containerRef} className="h-140 overflow-scroll px-2">
 				{chat.messages.map(({ isUserA, text, time }, i) => {
 					const isMyMessage = isUserA
 						? user.id === chat.userIDA
@@ -112,7 +149,7 @@ function ChatPage() {
 								"justify-start": !isMyMessage,
 							})}>
 							<Card
-								className={cn("w-1/2 p-2", {
+								className={cn("max-w-3/4 w-fit p-2", {
 									"bg-blue-100": isMyMessage,
 									"bg-green-100": !isMyMessage,
 								})}>

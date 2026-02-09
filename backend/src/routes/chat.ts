@@ -90,6 +90,10 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 						userIDA === userID ? userIDB : userIDA,
 					),
 				}),
+			)
+			.sort(
+				(chatHeaderA, chatHeaderB) =>
+					chatHeaderB.lastMessageTime - chatHeaderA.lastMessageTime,
 			);
 		reply.send({
 			chatHeaders,

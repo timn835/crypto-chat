@@ -120,7 +120,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 	useEffect(() => {
 		// Listen to user connexions to update the chatHeaders connected state
 		socket?.on("user-connected", ({ chatId }: { chatId: string }) => {
-			console.log("ATTENTION: a user has connected");
 			// Update frontend chat headers
 			queryClient.setQueryData(
 				["chats"],
@@ -162,20 +161,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 					(newMessage.text.length > 10 ? "..." : "");
 				queryClient.setQueryData(
 					["chats"],
-					(oldData: ChatHeader[]): ChatHeader[] =>
-						oldData.map((chatHeader) => {
-							if (
-								chatHeader.id !== chatId ||
-								chatHeader.lastMessageTime > newMessage.time
-							)
-								return chatHeader;
-							return {
-								...chatHeader,
+					(oldData: ChatHeader[]): ChatHeader[] => {
+						const newData: ChatHeader[] = [
+							{
+								id: chatId,
+								otherUserHandle: "",
+								isOtherUserConnected: false,
 								lastMessageHeader,
 								lastMessageTime: newMessage.time,
 								isAuthorOfLastMessage: false,
-							};
-						}),
+							},
+						];
+
+						for (const chatHeader of oldData) {
+							if (chatHeader.id !== chatId) {
+								newData.push(chatHeader);
+								continue;
+							}
+							newData[0].otherUserHandle =
+								chatHeader.otherUserHandle;
+							newData[0].isOtherUserConnected =
+								chatHeader.isOtherUserConnected;
+						}
+						return newData;
+					},
 				);
 
 				// Update frontend chat
