@@ -19,6 +19,8 @@ export type DBChat = {
 	userHandleA: string;
 	userHandleB: string;
 	messages: Message[];
+	userALastSeenMessageIndex: number;
+	userBLastSeenMessageIndex: number;
 };
 
 export type ChatHeader = {
@@ -28,4 +30,5 @@ export type ChatHeader = {
 	lastMessageHeader: string;
 	lastMessageTime: number;
 	isAuthorOfLastMessage: boolean;
+	unseenMessages: number;
 };

@@ -209,6 +209,8 @@ fastify.ready((err) => {
 							isUserA: true,
 						},
 					],
+					userALastSeenMessageIndex: 0,
+					userBLastSeenMessageIndex: -1,
 				};
 				dbChats.push(newChat);
 
@@ -228,6 +230,7 @@ fastify.ready((err) => {
 						(data.message.length > 10 ? "..." : ""),
 					lastMessageTime: newChat.messages[0]!.time,
 					isAuthorOfLastMessage: false,
+					unseenMessages: 1,
 				};
 
 				// Join userB if connected
@@ -246,6 +249,7 @@ fastify.ready((err) => {
 				newChatHeader.otherUserHandle = userB.handle;
 				newChatHeader.isOtherUserConnected = isUserBConnected;
 				newChatHeader.isAuthorOfLastMessage = true;
+				newChatHeader.unseenMessages = 0;
 				socket.emit("chat-started", { newChatHeader });
 			},
 		);
@@ -276,12 +280,30 @@ fastify.ready((err) => {
 						];
 						idx--;
 					}
+					break;
 				}
 
 				// Emit the event
 				socket.to(data.chatId).emit("new-message", data);
 			},
 		);
+
+		// Listen for seen chat event
+		socket.on("seen-chat", (data: { chatId: string }) => {
+			// Update the chat's seen message index
+			for (const dbChat of dbChats) {
+				if (dbChat.id === data.chatId) {
+					if (socket.userId === dbChat.userIDA) {
+						dbChat.userALastSeenMessageIndex =
+							dbChat.messages.length - 1;
+					} else if (socket.userId === dbChat.userIDB) {
+						dbChat.userBLastSeenMessageIndex =
+							dbChat.messages.length - 1;
+					}
+					break;
+				}
+			}
+		});
 
 		socket.on("disconnect", () => {
 			// Log disconnection

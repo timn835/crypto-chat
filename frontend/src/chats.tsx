@@ -29,17 +29,19 @@ export async function fetchChat(chatId: string): Promise<Chat | null> {
 		const response = await fetch(
 			`${import.meta.env.VITE_BACKEND_URL}/auth/chat/${chatId}`,
 			{
-				method: "GET",
+				method: "POST", // POST request because it automatically updates the seen messages by the user
 				headers: {
 					"Content-Type": "application/json",
 				},
 				credentials: "include",
+				body: JSON.stringify({}),
 			},
 		);
 		if (!response.ok) {
 			const { message }: { message: string } = await response.json();
 			throw Error(message);
 		}
+
 		const { chat } = await response.json();
 		return chat;
 	} catch (error) {

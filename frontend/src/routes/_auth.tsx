@@ -47,6 +47,7 @@ function AuthLayout() {
 									lastMessageHeader,
 									lastMessageTime,
 									isAuthorOfLastMessage,
+									unseenMessages,
 								}) => (
 									<li key={id}>
 										<Link
@@ -62,6 +63,11 @@ function AuthLayout() {
 													},
 												)}>
 												{otherUserHandle}
+												{unseenMessages ? (
+													<span className="mx-1 px-2 rounded-md bg-green-500 text-accent">
+														{unseenMessages}
+													</span>
+												) : null}
 											</p>
 											<p className="text-xs">{`${formatterUS.format(new Date(lastMessageTime))}`}</p>
 											<p className="text-xs">{`${

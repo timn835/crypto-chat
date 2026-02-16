@@ -55,7 +55,7 @@ function ChatPage() {
 		// Update frontend chat headers
 		const newMessage: Message = {
 			text: message,
-			isUserA: user.id === chat.userIDA,
+			isUserA: chat.isUserA,
 			time: new Date().getTime(),
 		};
 		const lastMessageHeader =
@@ -71,6 +71,7 @@ function ChatPage() {
 						lastMessageHeader,
 						lastMessageTime: newMessage.time,
 						isAuthorOfLastMessage: true,
+						unseenMessages: 0,
 					},
 				];
 
@@ -118,9 +119,6 @@ function ChatPage() {
 	if (isChatLoading || areChatHeadersLoading) return <div>...Loading...</div>;
 	if (!chat || !user) return <div>Something went wrong</div>;
 
-	const otherUserHandle =
-		user.id === chat.userIDA ? chat.userHandleB : chat.userHandleA;
-
 	const otherUserConnected = !!chatHeaders?.find(
 		(chatHeader) => chatHeader.id === chatId,
 	)?.isOtherUserConnected;
@@ -132,15 +130,13 @@ function ChatPage() {
 					className={cn("w-1/2", {
 						"text-green-500": otherUserConnected,
 					})}>
-					{`${otherUserHandle} - ${otherUserConnected ? "online" : "offline"}`}
+					{`${chat.otherUserHandle} - ${otherUserConnected ? "online" : "offline"}`}
 				</div>
 				<div className="w-1/2">{user.handle}</div>
 			</div>
 			<div ref={containerRef} className="h-140 overflow-scroll px-2">
 				{chat.messages.map(({ isUserA, text, time }, i) => {
-					const isMyMessage = isUserA
-						? user.id === chat.userIDA
-						: user.id === chat.userIDB;
+					const isMyMessage = isUserA === chat.isUserA;
 					return (
 						<div
 							key={`message-${i}`}
@@ -154,7 +150,7 @@ function ChatPage() {
 									"bg-green-100": !isMyMessage,
 								})}>
 								<CardContent>
-									<p>{text}</p>
+									<p className="wrap-break-word">{text}</p>
 								</CardContent>
 								<CardFooter
 									className={cn("border-t-2", {

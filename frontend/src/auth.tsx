@@ -155,6 +155,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 				chatId: string;
 				newMessage: Message;
 			}) => {
+				// If we are seeing the chat, warn the server that we have seen these messages
+				const seen = window.location.pathname.includes(chatId);
+				if (seen) {
+					socket.emit("seen-chat", {
+						chatId,
+					});
+				}
+
 				// Update frontend chat headers
 				const lastMessageHeader =
 					newMessage.text.slice(0, 10) +
@@ -170,6 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 								lastMessageHeader,
 								lastMessageTime: newMessage.time,
 								isAuthorOfLastMessage: false,
+								unseenMessages: 0,
 							},
 						];
 
@@ -182,6 +191,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 								chatHeader.otherUserHandle;
 							newData[0].isOtherUserConnected =
 								chatHeader.isOtherUserConnected;
+							newData[0].unseenMessages = seen
+								? 0
+								: 1 + chatHeader.unseenMessages;
 						}
 						return newData;
 					},
@@ -190,7 +202,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 				// Update frontend chat
 				queryClient.setQueryData(
 					["chat", chatId],
-					(oldData: Chat): Chat => {
+					(oldData?: Chat): Chat | undefined => {
+						if (!oldData) return oldData;
 						const newMessages = [...oldData.messages, newMessage];
 						// Adjust for potential concurrency
 						let idx = newMessages.length - 1;

@@ -10,10 +10,9 @@ export type Message = {
 };
 
 export type Chat = {
-	userIDA: string;
-	userIDB: string;
-	userHandleA: string;
-	userHandleB: string;
+	otherUserID: string;
+	otherUserHandle: string;
+	isUserA: boolean;
 	messages: Message[];
 };
 
@@ -24,4 +23,5 @@ export type ChatHeader = {
 	lastMessageHeader: string;
 	lastMessageTime: number;
 	isAuthorOfLastMessage: boolean;
+	unseenMessages: number; // number of unseen messages by the user in this chat
 };

@@ -71,6 +71,8 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 					userIDB,
 					userHandleA,
 					userHandleB,
+					userALastSeenMessageIndex,
+					userBLastSeenMessageIndex,
 				}) => ({
 					id,
 					otherUserHandle:
@@ -89,6 +91,12 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 					isOtherUserConnected: connectedUsers.has(
 						userIDA === userID ? userIDB : userIDA,
 					),
+					unseenMessages:
+						messages.length -
+						1 -
+						(userIDA === userID
+							? userALastSeenMessageIndex
+							: userBLastSeenMessageIndex),
 				}),
 			)
 			.sort(
@@ -100,24 +108,55 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 		});
 	});
 
-	fastify.get<{ Params: { id: string } }>(
+	// This query is really a get, but we make it a post because it updates the last seen chat message index
+	fastify.post<{ Params: { id: string } }>(
 		"/auth/chat/:id",
 		(request, reply) => {
 			const chatID = request.params.id;
 			const userID = request.user;
 
 			// Get the chat
-			const chat = dbChats.find(({ id }) => id === chatID);
-			if (!chat)
-				return reply.status(404).send({ message: "Chat not found" });
+			for (const dbChat of dbChats) {
+				if (dbChat.id !== chatID) continue;
 
-			// Check if the user is part of the chat
-			if (chat.userIDA !== userID && chat.userIDB !== userID)
-				return reply
-					.status(401)
-					.send({ message: "User is not authorized in this chat" });
+				// Check if the user is part of the chat
+				if (dbChat.userIDA !== userID && dbChat.userIDB !== userID)
+					return reply.status(401).send({
+						message: "User is not authorized in this chat",
+					});
 
-			reply.send({ chat });
+				// Update the chat's last seen message index
+				if (
+					dbChat.userIDA === userID &&
+					dbChat.userALastSeenMessageIndex <
+						dbChat.messages.length - 1
+				)
+					dbChat.userALastSeenMessageIndex =
+						dbChat.messages.length - 1;
+				else if (
+					dbChat.userIDB === userID &&
+					dbChat.userBLastSeenMessageIndex <
+						dbChat.messages.length - 1
+				)
+					dbChat.userBLastSeenMessageIndex =
+						dbChat.messages.length - 1;
+
+				return reply.send({
+					chat: {
+						otherUserID:
+							userID === dbChat.userIDA
+								? dbChat.userIDB
+								: dbChat.userIDA,
+						otherUserHandle:
+							userID === dbChat.userIDA
+								? dbChat.userHandleB
+								: dbChat.userHandleA,
+						isUserA: userID === dbChat.userIDA,
+						messages: dbChat.messages,
+					},
+				});
+			}
+			return reply.status(404).send({ message: "Chat not found" });
 		},
 	);
 };
