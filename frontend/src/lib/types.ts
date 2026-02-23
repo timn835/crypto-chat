@@ -4,9 +4,9 @@ export type User = {
 };
 
 export type Message = {
-	text: string;
+	messageText: string;
 	isUserA: boolean;
-	time: number;
+	messageTime: number;
 };
 
 export type Chat = {
@@ -22,6 +22,6 @@ export type ChatHeader = {
 	isOtherUserConnected: boolean;
 	lastMessageHeader: string;
 	lastMessageTime: number;
+	unseenMessages: number;
 	isAuthorOfLastMessage: boolean;
-	unseenMessages: number; // number of unseen messages by the user in this chat
 };

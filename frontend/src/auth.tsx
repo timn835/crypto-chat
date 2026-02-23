@@ -119,13 +119,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 	// This useEffect will listen to whenever we receive messages/notifications/events from the socket
 	useEffect(() => {
 		// Listen to user connexions to update the chatHeaders connected state
-		socket?.on("user-connected", ({ chatId }: { chatId: string }) => {
+		socket?.on("user-connected", ({ chatID }: { chatID: string }) => {
 			// Update frontend chat headers
 			queryClient.setQueryData(
 				["chats"],
 				(oldData: ChatHeader[]): ChatHeader[] =>
 					oldData.map((chatHeader) => {
-						if (chatHeader.id !== chatId) return chatHeader;
+						if (chatHeader.id !== chatID) return chatHeader;
 						return {
 							...chatHeader,
 							isOtherUserConnected: true,
@@ -160,13 +160,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 				if (seen) {
 					socket.emit("seen-chat", {
 						chatId,
+						lastMessageTime: newMessage.messageTime,
 					});
 				}
 
 				// Update frontend chat headers
 				const lastMessageHeader =
-					newMessage.text.slice(0, 10) +
-					(newMessage.text.length > 10 ? "..." : "");
+					newMessage.messageText.slice(0, 10) +
+					(newMessage.messageText.length > 10 ? "..." : "");
 				queryClient.setQueryData(
 					["chats"],
 					(oldData: ChatHeader[]): ChatHeader[] => {
@@ -176,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 								otherUserHandle: "",
 								isOtherUserConnected: false,
 								lastMessageHeader,
-								lastMessageTime: newMessage.time,
+								lastMessageTime: newMessage.messageTime,
 								isAuthorOfLastMessage: false,
 								unseenMessages: 0,
 							},
@@ -209,7 +210,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 						let idx = newMessages.length - 1;
 						while (
 							idx > 0 &&
-							newMessages[idx].time < newMessages[idx - 1]!.time
+							newMessages[idx].messageTime <
+								newMessages[idx - 1]!.messageTime
 						) {
 							[newMessages[idx], newMessages[idx - 1]] = [
 								newMessages[idx - 1]!,
@@ -227,13 +229,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		);
 
 		// Listen to user disconnexions to update the chatHeaders connected state
-		socket?.on("user-disconnected", ({ chatId }: { chatId: string }) => {
+		socket?.on("user-disconnected", ({ chatID }: { chatID: string }) => {
 			// Update frontend chat headers
 			queryClient.setQueryData(
 				["chats"],
 				(oldData: ChatHeader[]): ChatHeader[] =>
 					oldData.map((chatHeader) => {
-						if (chatHeader.id !== chatId) return chatHeader;
+						if (chatHeader.id !== chatID) return chatHeader;
 						return {
 							...chatHeader,
 							isOtherUserConnected: false,

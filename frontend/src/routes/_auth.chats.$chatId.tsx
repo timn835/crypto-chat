@@ -28,7 +28,15 @@ function ChatPage() {
 
 	const { data: chatHeaders, isLoading: areChatHeadersLoading } = useQuery({
 		queryKey: ["chats"],
-		queryFn: async () => await fetchChats(),
+		queryFn: async () => {
+			const fetchedHeaders = await fetchChats();
+			// The adjustment is necessary when navigating to this chats/$chatId from a non-chat route
+			return fetchedHeaders.map((chatHeader) =>
+				chatHeader.id === chatId
+					? { ...chatHeader, unseenMessages: 0 }
+					: chatHeader,
+			);
+		},
 	});
 
 	const onFormSubmit = (evt: FormEvent<HTMLFormElement>) => {
@@ -54,9 +62,9 @@ function ChatPage() {
 
 		// Update frontend chat headers
 		const newMessage: Message = {
-			text: message,
+			messageText: message,
 			isUserA: chat.isUserA,
-			time: new Date().getTime(),
+			messageTime: new Date().getTime(),
 		};
 		const lastMessageHeader =
 			message.slice(0, 10) + (message.length > 10 ? "..." : "");
@@ -69,7 +77,7 @@ function ChatPage() {
 						otherUserHandle: "",
 						isOtherUserConnected: false,
 						lastMessageHeader,
-						lastMessageTime: newMessage.time,
+						lastMessageTime: newMessage.messageTime,
 						isAuthorOfLastMessage: true,
 						unseenMessages: 0,
 					},
@@ -100,6 +108,7 @@ function ChatPage() {
 		// Emit new message
 		socket.emit("new-message", {
 			chatId,
+			otherUserID: chat.otherUserID,
 			newMessage,
 		});
 
@@ -107,13 +116,19 @@ function ChatPage() {
 		evt.currentTarget.reset();
 	};
 
-	// useEffect for automatic scroll
 	useEffect(() => {
+		// useEffect for automatic scroll
 		if (!chat) return;
 		containerRef.current?.scrollTo({
 			top: containerRef.current.scrollHeight,
 			behavior: "smooth",
 		});
+		// The adjustment is necessary when navigating to this chats/$chatId from anotether chats/$chatId
+		queryClient.setQueryData(["chats"], (oldData: ChatHeader[]) =>
+			oldData.map((h) =>
+				h.id === chatId ? { ...h, unseenMessages: 0 } : h,
+			),
+		);
 	}, [chat]);
 
 	if (isChatLoading || areChatHeadersLoading) return <div>...Loading...</div>;
@@ -135,34 +150,38 @@ function ChatPage() {
 				<div className="w-1/2">{user.handle}</div>
 			</div>
 			<div ref={containerRef} className="h-140 overflow-scroll px-2">
-				{chat.messages.map(({ isUserA, text, time }, i) => {
-					const isMyMessage = isUserA === chat.isUserA;
-					return (
-						<div
-							key={`message-${i}`}
-							className={cn("w-full flex p-1", {
-								"justify-end": isMyMessage,
-								"justify-start": !isMyMessage,
-							})}>
-							<Card
-								className={cn("max-w-3/4 w-fit p-2", {
-									"bg-blue-100": isMyMessage,
-									"bg-green-100": !isMyMessage,
+				{chat.messages.map(
+					({ isUserA, messageText, messageTime }, i) => {
+						const isMyMessage = isUserA === chat.isUserA;
+						return (
+							<div
+								key={`message-${i}`}
+								className={cn("w-full flex p-1", {
+									"justify-end": isMyMessage,
+									"justify-start": !isMyMessage,
 								})}>
-								<CardContent>
-									<p className="wrap-break-word">{text}</p>
-								</CardContent>
-								<CardFooter
-									className={cn("border-t-2", {
-										"border-blue-500": isMyMessage,
-										"border-green-500": !isMyMessage,
+								<Card
+									className={cn("max-w-3/4 w-fit p-2", {
+										"bg-blue-100": isMyMessage,
+										"bg-green-100": !isMyMessage,
 									})}>
-									<p className="w-full text-end">{`${formatterUS.format(new Date(time))}`}</p>
-								</CardFooter>
-							</Card>
-						</div>
-					);
-				})}
+									<CardContent>
+										<p className="wrap-break-word">
+											{messageText}
+										</p>
+									</CardContent>
+									<CardFooter
+										className={cn("border-t-2", {
+											"border-blue-500": isMyMessage,
+											"border-green-500": !isMyMessage,
+										})}>
+										<p className="w-full text-end">{`${formatterUS.format(new Date(messageTime))}`}</p>
+									</CardFooter>
+								</Card>
+							</div>
+						);
+					},
+				)}
 			</div>
 			<form
 				className="flex justify-center items-center gap-2"

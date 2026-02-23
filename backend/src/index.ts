@@ -6,15 +6,20 @@ import Fastify, { FastifyInstance } from "fastify";
 import fastifySocketIO from "fastify-socket.io";
 import { Server } from "socket.io";
 import { COOKIE_NAME } from "./lib/constants";
-import type { ChatHeader, DBChat, DBUser, Message } from "./lib/types";
+import {
+	dbGetChatIDs,
+	dbGetOtherUserInChat,
+	dbGetUser,
+	dbResetUserChatUnseenMessages,
+	dbStoreMessage,
+	dbStoreUserChat,
+	dbUpdateLastMessageTime,
+} from "./lib/db-utils";
+import type { ChatHeader, Message } from "./lib/types";
 import { authRoutes } from "./routes/auth";
 import { chatRoutes } from "./routes/chat";
 
 dotenv.config();
-
-export const dbUsers: DBUser[] = [];
-
-export const dbChats: DBChat[] = [];
 
 const fastify: FastifyInstance = Fastify({
 	logger: true,
@@ -142,101 +147,99 @@ fastify.ready((err) => {
 	if (err) throw err;
 
 	// Access the decorated 'io' instance
-	fastify.io.on("connection", (socket) => {
+	fastify.io.on("connection", async (socket) => {
 		console.log(
 			`Socket connected! socket ID: ${socket.id}, user ID: ${socket.userId}`,
 		);
 
+		// Get user
+		const dbUser = await dbGetUser(socket.userId);
+		if (!dbUser) return;
+
+		// Get chat ids
+		const dbChatIDs = await dbGetChatIDs(socket.userId);
+
 		// Join all user rooms & emit that socket has connected
-		for (const dbUser of dbUsers) {
-			if (dbUser.id === socket.userId) {
-				for (const chatId of dbUser.chatIDs) {
-					socket.join(chatId);
-					socket.to(chatId).emit("user-connected", { chatId });
-				}
-				break;
-			}
+		for (const { chatID } of dbChatIDs) {
+			socket.join(chatID);
+			socket.to(chatID).emit("user-connected", { chatID });
 		}
 
 		// Listen for start-chat event
 		socket.on(
 			"start-chat",
-			(data: {
+			async (data: {
 				message: string;
 				userId: string;
 				newChatID: string;
 				messageDate: number;
 			}) => {
-				const userIDA = socket.userId;
-				const userIDB = data.userId;
-
 				// Find both users
-				let userA: DBUser | undefined,
-					userB: DBUser | undefined = undefined;
-				for (const dbUser of dbUsers) {
-					if (dbUser.id === userIDA) {
-						userA = dbUser;
-						if (userB) break;
-					} else if (dbUser.id === userIDB) {
-						userB = dbUser;
-						if (userA) break;
-					}
-				}
+				const userA = await dbGetUser(socket.userId);
+				const userB = await dbGetUser(data.userId);
 				if (!userA || !userB) return;
 
-				// Check that there isn't already a chat between the 2 users
-				for (const chatID of userA.chatIDs) {
-					const chat = dbChats.find(
-						(dbChat) => dbChat.id === chatID,
-					)!;
-					if (chat.userIDA === userIDB || chat.userIDB === userIDB) {
-						return;
-					}
+				// Get userA chat ids
+				const userAChatIDs = await dbGetChatIDs(socket.userId);
+
+				// Check that there isn't already a chat between the 2 users.
+				// We will only check existing ids from userA's perspective.
+				// it is good enough, as long as our DB is not in a broken state.
+				for (const { otherUserID } of userAChatIDs) {
+					if (otherUserID === data.userId) return;
 				}
 
-				// Create new chat
+				// Create new message
 				const newChatID = data.newChatID;
-				const newChat: DBChat = {
-					id: newChatID,
-					userIDA,
-					userIDB,
-					userHandleA: userA.handle,
-					userHandleB: userB.handle,
-					messages: [
-						{
-							text: data.message,
-							time: data.messageDate,
-							isUserA: true,
-						},
-					],
-					userALastSeenMessageIndex: 0,
-					userBLastSeenMessageIndex: -1,
-				};
-				dbChats.push(newChat);
+				const messageTime = await dbStoreMessage(
+					newChatID,
+					data.message.trim(),
+					data.messageDate,
+					true,
+				);
+				if (messageTime === -1) return;
 
-				// Update user chats
-				userA.chatIDs.push(newChatID);
-				userB.chatIDs.push(newChatID);
+				// Create new user-chat for userA
+				dbStoreUserChat(
+					socket.userId,
+					newChatID,
+					data.userId,
+					userB.handle,
+					true,
+					messageTime,
+					0,
+				);
+
+				// Create new user-chat for userB
+				dbStoreUserChat(
+					data.userId,
+					newChatID,
+					socket.userId,
+					userA.handle,
+					false,
+					messageTime,
+					1,
+				);
 
 				// Join userA
 				socket.join(newChatID);
 
 				const newChatHeader: ChatHeader = {
-					id: newChat.id,
+					id: newChatID,
 					otherUserHandle: userA.handle,
 					isOtherUserConnected: true,
 					lastMessageHeader:
 						data.message.slice(0, 10) +
 						(data.message.length > 10 ? "..." : ""),
-					lastMessageTime: newChat.messages[0]!.time,
-					isAuthorOfLastMessage: false,
+					lastMessageTime: messageTime,
 					unseenMessages: 1,
+					isAuthorOfLastMessage: false,
 				};
 
 				// Join userB if connected
 				let isUserBConnected = false;
 				for (const bSocket of fastify.io.sockets.sockets.values()) {
-					if (bSocket.userId === userIDB) {
+					if (bSocket.userId === data.userId) {
 						if (!isUserBConnected) isUserBConnected = true;
 						bSocket.join(newChatID);
 					}
@@ -257,55 +260,62 @@ fastify.ready((err) => {
 		// Listen for new-message event
 		socket.on(
 			"new-message",
-			(data: { chatId: string; newMessage: Message }) => {
-				for (let i = 0; i < dbChats.length; i++) {
-					if (dbChats[i]!.id !== data.chatId) continue;
+			async (data: {
+				chatId: string;
+				otherUserID: string;
+				newMessage: Message;
+			}) => {
+				// Check that the user is allowed in the chat and that the other user is in the chat
+				const otherUserID = await dbGetOtherUserInChat(
+					socket.userId,
+					data.chatId,
+				);
+				if (!otherUserID || otherUserID !== data.otherUserID) return;
 
-					// Add message to chat
-					dbChats[i]!.messages.push(data.newMessage);
+				// Store the new message, checking the time for concurrency
+				const messageTime = await dbStoreMessage(
+					data.chatId,
+					data.newMessage.messageText,
+					data.newMessage.messageTime,
+					data.newMessage.isUserA,
+				);
+				if (messageTime === -1) return;
+				if (data.newMessage.messageTime !== messageTime)
+					data.newMessage.messageTime = messageTime;
 
-					// Adjust for potential concurrency
-					let idx = dbChats[i]!.messages.length - 1;
-					while (
-						idx > 0 &&
-						dbChats[i]!.messages[idx]!.time <
-							dbChats[i]!.messages[idx - 1]!.time
-					) {
-						[
-							dbChats[i]!.messages[idx],
-							dbChats[i]!.messages[idx - 1],
-						] = [
-							dbChats[i]!.messages[idx - 1]!,
-							dbChats[i]!.messages[idx]!,
-						];
-						idx--;
-					}
-					break;
-				}
+				// Update sender's user-chats last message time
+				dbUpdateLastMessageTime(
+					socket.userId,
+					data.chatId,
+					messageTime,
+				);
 
-				// Emit the event
-				socket.to(data.chatId).emit("new-message", data);
+				// Update receivers' user-chats unseen messages
+				dbUpdateLastMessageTime(
+					otherUserID,
+					data.chatId,
+					messageTime,
+					1,
+				);
+
+				// Emit the event to the room
+				socket.to(data.chatId).emit("new-message", {
+					chatId: data.chatId,
+					newMessage: data.newMessage,
+				});
 			},
 		);
 
 		// Listen for seen chat event
-		socket.on("seen-chat", (data: { chatId: string }) => {
-			// Update the chat's seen message index
-			for (const dbChat of dbChats) {
-				if (dbChat.id === data.chatId) {
-					if (socket.userId === dbChat.userIDA) {
-						dbChat.userALastSeenMessageIndex =
-							dbChat.messages.length - 1;
-					} else if (socket.userId === dbChat.userIDB) {
-						dbChat.userBLastSeenMessageIndex =
-							dbChat.messages.length - 1;
-					}
-					break;
-				}
-			}
-		});
+		socket.on(
+			"seen-chat",
+			(data: { chatId: string; lastMessageTime: number }) => {
+				// Update the chat's last seen message time
+				dbResetUserChatUnseenMessages(socket.userId, data.chatId);
+			},
+		);
 
-		socket.on("disconnect", () => {
+		socket.on("disconnect", async () => {
 			// Log disconnection
 			console.log(
 				`Socket disconnected! socket ID: ${socket.id}, user ID: ${socket.userId}`,
@@ -321,15 +331,10 @@ fastify.ready((err) => {
 				}
 			}
 			if (!stillConnected) {
-				for (const dbUser of dbUsers) {
-					if (dbUser.id === socket.userId) {
-						for (const chatId of dbUser.chatIDs) {
-							socket
-								.to(chatId)
-								.emit("user-disconnected", { chatId });
-						}
-						break;
-					}
+				// Fetch all user-chats ids
+				const userChatIDs = await dbGetChatIDs(socket.userId);
+				for (const { chatID } of userChatIDs) {
+					socket.to(chatID).emit("user-disconnected", { chatID });
 				}
 			}
 		});

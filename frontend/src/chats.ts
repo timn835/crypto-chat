@@ -16,8 +16,12 @@ export async function fetchChats(): Promise<ChatHeader[]> {
 			const { message }: { message: string } = await response.json();
 			throw Error(message);
 		}
-		const { chatHeaders } = await response.json();
-		return chatHeaders;
+		const { chatHeaders }: { chatHeaders: ChatHeader[] } =
+			await response.json();
+		return chatHeaders.sort(
+			(headerA, headerB) =>
+				headerB.lastMessageTime - headerA.lastMessageTime,
+		);
 	} catch (error) {
 		console.error(error);
 		return [];

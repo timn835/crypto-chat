@@ -1,108 +1,124 @@
 import type { FastifyPluginAsync } from "fastify";
-import { dbChats, dbUsers } from "..";
-import type { ChatHeader } from "../lib/types";
+import type { ChatHeader, Message } from "../lib/types";
+import {
+	dbGetChatID,
+	dbGetChatIDs,
+	dbGetLastMessages,
+	dbGetMatchingUserHandles,
+	dbGetMessages,
+	dbResetUserChatUnseenMessages,
+} from "../lib/db-utils";
 
 export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 	// Search for available users to chat with
 	fastify.get<{ Querystring: { handle: string } }>(
 		"/auth/search",
-		(request, reply) => {
-			const handle = request.query.handle;
+		async (request, reply) => {
+			const userID: string = request.user as string;
+			const handle = request.query.handle.toLowerCase();
+
+			// Check handle length
+			if (handle.length > 20)
+				return reply
+					.status(400)
+					.send({ message: "Search handle is too long" });
+
+			// Find all matching users
+			const matchingUserIDs = await dbGetMatchingUserHandles(
+				userID,
+				handle,
+			);
+
+			// Get all connected users
+			const connectedUsers = new Set<string>();
+			for (const socket of fastify.io.sockets.sockets.values())
+				connectedUsers.add(socket.userId);
+
+			// Get existing chat ids for user
+			const userChatIDs = await dbGetChatIDs(userID);
+
+			// Fill out userToChatIDMap
+			let userToChatIDMap: Record<string, string> = {};
+			for (const { chatID, otherUserID } of userChatIDs) {
+				userToChatIDMap[otherUserID] = chatID;
+			}
+
 			const users: {
 				id: string;
 				handle: string;
 				connected: boolean;
 				existingChatID: string | undefined;
-			}[] = [];
-			const connectedUsers = new Set<string>();
-			for (const socket of fastify.io.sockets.sockets.values())
-				connectedUsers.add(socket.userId);
-
-			let userToChatIDMap: Record<string, string> = {};
-			for (const user of dbUsers) {
-				if (user.id === request.user) {
-					for (const chatID of user.chatIDs) {
-						const chat = dbChats.find(
-							(dbChat) => dbChat.id === chatID,
-						);
-						if (!chat) continue;
-						userToChatIDMap[
-							chat.userIDA === request.user
-								? chat.userIDB
-								: chat.userIDA
-						] = chat.id;
-					}
-					break;
-				}
-			}
-
-			if (handle.length <= 20) {
-				for (const user of dbUsers) {
-					if (user.id === request.user) continue;
-					if (user.handle.toLowerCase().includes(handle))
-						users.push({
-							id: user.id,
-							handle: user.handle,
-							connected: connectedUsers.has(user.id),
-							existingChatID: userToChatIDMap[user.id],
-						});
-				}
-			}
+			}[] = matchingUserIDs.map(({ userID, handle }) => ({
+				id: userID,
+				handle,
+				connected: connectedUsers.has(userID),
+				existingChatID: userToChatIDMap[userID],
+			}));
 			reply.send({ users });
 		},
 	);
 
-	fastify.get("/auth/chats", (request, reply) => {
-		const userID = request.user;
+	fastify.get("/auth/chats", async (request, reply) => {
+		const userID = request.user as string;
 		const connectedUsers = new Set<string>();
 		for (const socket of fastify.io.sockets.sockets.values())
 			connectedUsers.add(socket.userId);
 
-		const chatHeaders: ChatHeader[] = dbChats
-			.filter(
-				({ userIDA, userIDB }) =>
-					userIDA === userID || userIDB === userID,
-			)
-			.map(
-				({
-					id,
-					messages,
-					userIDA,
-					userIDB,
-					userHandleA,
-					userHandleB,
-					userALastSeenMessageIndex,
-					userBLastSeenMessageIndex,
-				}) => ({
-					id,
-					otherUserHandle:
-						userIDA === userID ? userHandleB : userHandleA,
-					numOfMessages: messages.length,
+		// Get existing chat ids for user
+		const userChatIDs = await dbGetChatIDs(userID);
+		const chatHeaders: ChatHeader[] = [];
+
+		// Get last messages
+		const lastMessages = await dbGetLastMessages(
+			userChatIDs.map(({ chatID, lastMessageTime }) => ({
+				chatID,
+				messageTime: lastMessageTime,
+			})),
+		);
+		if (lastMessages === null)
+			return reply.send({
+				chatHeaders,
+			});
+
+		// We have to construct this map because userChatIDs and lastMessages are not necessarily in the same order
+		const chatIDToLastMessageMap: Record<string, Message> = {};
+		for (const message of lastMessages) {
+			chatIDToLastMessageMap[message.chatID] = {
+				messageTime: message.messageTime,
+				messageText: message.messageText,
+				isUserA: message.isUserA,
+			};
+		}
+
+		if (userChatIDs.length === lastMessages.length) {
+			for (const {
+				chatID,
+				otherUserHandle,
+				otherUserID,
+				unseenMessages,
+				isUserA,
+			} of userChatIDs) {
+				chatHeaders.push({
+					id: chatID,
+					otherUserHandle,
+					isOtherUserConnected: connectedUsers.has(otherUserID),
 					lastMessageHeader:
-						messages[messages.length - 1]!.text.slice(0, 10) +
-						(messages[messages.length - 1]!.text.length > 10
+						chatIDToLastMessageMap[chatID]!.messageText.slice(
+							0,
+							10,
+						) +
+						(chatIDToLastMessageMap[chatID]!.messageText.length > 10
 							? "..."
 							: ""),
-					lastMessageTime: messages[messages.length - 1]!.time,
-					isAuthorOfLastMessage: messages[messages.length - 1]!
-						.isUserA
-						? userIDA === userID
-						: userIDB === userID,
-					isOtherUserConnected: connectedUsers.has(
-						userIDA === userID ? userIDB : userIDA,
-					),
-					unseenMessages:
-						messages.length -
-						1 -
-						(userIDA === userID
-							? userALastSeenMessageIndex
-							: userBLastSeenMessageIndex),
-				}),
-			)
-			.sort(
-				(chatHeaderA, chatHeaderB) =>
-					chatHeaderB.lastMessageTime - chatHeaderA.lastMessageTime,
-			);
+					lastMessageTime:
+						chatIDToLastMessageMap[chatID]!.messageTime,
+					unseenMessages,
+					isAuthorOfLastMessage:
+						isUserA === chatIDToLastMessageMap[chatID]!.isUserA,
+				});
+			}
+		}
+
 		reply.send({
 			chatHeaders,
 		});
@@ -111,52 +127,30 @@ export const chatRoutes: FastifyPluginAsync = async (fastify) => {
 	// This query is really a get, but we make it a post because it updates the last seen chat message index
 	fastify.post<{ Params: { id: string } }>(
 		"/auth/chat/:id",
-		(request, reply) => {
+		async (request, reply) => {
 			const chatID = request.params.id;
-			const userID = request.user;
+			const userID = request.user as string;
 
-			// Get the chat
-			for (const dbChat of dbChats) {
-				if (dbChat.id !== chatID) continue;
+			// Get the user-chat id
+			const userChatID = await dbGetChatID(userID, chatID);
+			if (userChatID === null)
+				return reply.status(404).send({ message: "Chat not found" });
 
-				// Check if the user is part of the chat
-				if (dbChat.userIDA !== userID && dbChat.userIDB !== userID)
-					return reply.status(401).send({
-						message: "User is not authorized in this chat",
-					});
+			// Get the chat messages
+			const messages = await dbGetMessages(chatID);
 
-				// Update the chat's last seen message index
-				if (
-					dbChat.userIDA === userID &&
-					dbChat.userALastSeenMessageIndex <
-						dbChat.messages.length - 1
-				)
-					dbChat.userALastSeenMessageIndex =
-						dbChat.messages.length - 1;
-				else if (
-					dbChat.userIDB === userID &&
-					dbChat.userBLastSeenMessageIndex <
-						dbChat.messages.length - 1
-				)
-					dbChat.userBLastSeenMessageIndex =
-						dbChat.messages.length - 1;
+			// If the user has unseen messages, update the user-chat id
+			if (userChatID.unseenMessages > 0)
+				dbResetUserChatUnseenMessages(userID, chatID);
 
-				return reply.send({
-					chat: {
-						otherUserID:
-							userID === dbChat.userIDA
-								? dbChat.userIDB
-								: dbChat.userIDA,
-						otherUserHandle:
-							userID === dbChat.userIDA
-								? dbChat.userHandleB
-								: dbChat.userHandleA,
-						isUserA: userID === dbChat.userIDA,
-						messages: dbChat.messages,
-					},
-				});
-			}
-			return reply.status(404).send({ message: "Chat not found" });
+			reply.send({
+				chat: {
+					otherUserID: userChatID.otherUserID,
+					otherUserHandle: userChatID.otherUserHandle,
+					isUserA: userChatID.isUserA,
+					messages,
+				},
+			});
 		},
 	);
 };

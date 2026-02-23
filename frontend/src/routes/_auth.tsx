@@ -2,8 +2,9 @@ import { useAuth } from "@/auth";
 import { fetchChats } from "@/chats";
 import { Navbar } from "@/components/Navbar";
 import { Drawer } from "@/components/ui/drawer";
+import type { ChatHeader } from "@/lib/types";
 import { cn, formatterUS } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
@@ -28,6 +29,7 @@ function AuthLayout() {
 		queryKey: ["chats"],
 		queryFn: async () => await fetchChats(),
 	});
+	const queryClient = useQueryClient();
 	// const data = Route.useLoaderData();
 	if (!chatHeaders || !user) return <div>Something went wrong</div>;
 

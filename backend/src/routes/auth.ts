@@ -8,7 +8,12 @@ import {
 } from "../lib/constants";
 import type { DBUser } from "../lib/types";
 import { decryptData, EMAIL_REGEX } from "../lib/utils";
-import { dbUsers } from "..";
+import {
+	dbGetUser,
+	dbGetUserIDByHandle,
+	dbStoreHandle,
+	dbStoreUser,
+} from "../lib/db-utils";
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
 	fastify.post<{ Body: { data: string; iv: string } }>(
@@ -59,15 +64,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 					.send({ message: "Invalid credentials" });
 			}
 
-			let dbUser: DBUser | undefined;
-
+			let dbUser: DBUser | null = null;
+			const userID = await dbGetUserIDByHandle(handle);
 			if (create === "1") {
 				// Create new user
-				if (
-					dbUsers.find(
-						({ handle: dbUserHandle }) => handle === dbUserHandle,
-					)
-				) {
+				if (userID) {
 					return reply
 						.status(401)
 						.send({ message: "Handle already taken" });
@@ -79,21 +80,24 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 					handle,
 					hash,
 					email: email || "",
-					chatIDs: [],
 				};
+				dbStoreUser(dbUser.id, handle, hash, dbUser.email);
 
-				dbUsers.push(dbUser);
+				// Create handle
+				dbStoreHandle(handle, dbUser.id);
 			} else {
-				// Login existing user
-				dbUser = dbUsers.find(
-					({ handle: dbUserHandle }) => dbUserHandle === handle,
-				);
-				if (!dbUser) {
+				// Check existing user
+				if (!userID)
 					return reply
 						.status(401)
 						.send({ message: "Invalid credentials" });
-				}
+				dbUser = await dbGetUser(userID);
+				if (!dbUser)
+					return reply
+						.status(401)
+						.send({ message: "Invalid credentials" });
 
+				// Login existing user
 				const isRightPassword = await argon2.verify(
 					dbUser.hash,
 					password,
@@ -116,10 +120,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 				...COOKIE_OPTIONS,
 			});
 
-			console.log(dbUsers);
-
 			return reply.send({
-				user: { id: dbUser.id, handle: dbUser.handle },
+				user: { id: userID, handle },
 			});
 		},
 	);

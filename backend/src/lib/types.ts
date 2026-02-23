@@ -3,13 +3,12 @@ export type DBUser = {
 	handle: string;
 	hash: string;
 	email: string;
-	chatIDs: string[]; // all ids user is currently participating in
 };
 
 export type Message = {
-	text: string;
+	messageText: string;
 	isUserA: boolean;
-	time: number;
+	messageTime: number;
 };
 
 export type DBChat = {
@@ -29,6 +28,6 @@ export type ChatHeader = {
 	isOtherUserConnected: boolean;
 	lastMessageHeader: string;
 	lastMessageTime: number;
-	isAuthorOfLastMessage: boolean;
 	unseenMessages: number;
+	isAuthorOfLastMessage: boolean;
 };
